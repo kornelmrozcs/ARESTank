@@ -5,142 +5,161 @@ using UnityEngine;
 using static AStar;
 
 /// <summary>
-/// Class <c>DumbTank</c> is an example class used to demonstrate how to use the functions available from the <c>AITank</c> base class. 
-/// Copy this class when creating your smart tank class.
+/// KORNEL :: Update1 :: 
+///     1.Added FSM(Finite State Machine) logic to control the tank:
+///         -Searching for consumables when health or ammo is low.
+///         -Attacking visible enemy tanks and bases.
+///         -Exploring random points when no targets are available.
+///     2. Utilized functions from the base class (AITank):
+///         -Leveraged methods for pathfinding, path-following, random point generation, and turret firing.
+///         -Used properties from the base class to access critical variables (e.g., health level, ammo level, etc.).
+///     3. Improved code structure:
+///         -Split logic into separate functions for better readability and maintainability.
+///          -Each function(e.g., SearchForConsumables, AttackEnemyTank) has a clearly defined purpose and comments.
+///
 /// </summary>
 public class A_Smart : AITank
 {
-    public Dictionary<GameObject, float> enemyTanksFound = new Dictionary<GameObject, float>();     /*!< <c>enemyTanksFound</c> stores all tanks that are visible within the tanks sensor. */
-    public Dictionary<GameObject, float> consumablesFound = new Dictionary<GameObject, float>();    /*!< <c>consumablesFound</c> stores all consumables that are visible within the tanks sensor. */
-    public Dictionary<GameObject, float> enemyBasesFound = new Dictionary<GameObject, float>();     /*!< <c>enemyBasesFound</c> stores all enemybases that are visible within the tanks sensor. */
+    // Visible entities
+    public Dictionary<GameObject, float> enemyTanksFound = new Dictionary<GameObject, float>();
+    public Dictionary<GameObject, float> consumablesFound = new Dictionary<GameObject, float>();
+    public Dictionary<GameObject, float> enemyBasesFound = new Dictionary<GameObject, float>();
 
-    public GameObject enemyTank;        /*!< <c>enemyTank</c> stores a reference to a target enemy tank. 
-                                        * This should be taken from <c>enemyTanksFound</c>, only whilst within the tank sensor. 
-                                        * Reference should be removed and refreshed every update. */
+    // Targets
+    public GameObject enemyTank;
+    public GameObject consumable;
+    public GameObject enemyBase;
 
-    public GameObject consumable;       /*!< <c>consumable</c> stores a reference to a target consumable. 
-                                        * This should be taken from <c>consumablesFound</c>, only whilst within the tank sensor. 
-                                        * Reference should be removed and refreshed every update. */
+    // Timer
+    private float timer = 0f;
 
-    public GameObject enemyBase;        /*!< <c>enemyBase</c> stores a reference to a target enemy base. 
-                                         * This should be taken from <c>enemyBasesFound</c>, only whilst within the tank sensor. 
-                                        * Reference should be removed and refreshed every update. */
-
-    float t;    /*!< <c>t</c> stores timer value */
-    public HeuristicMode heuristicMode; /*!< <c>heuristicMode</c> Which heuristic used for find path. */
+    // Pathfinding heuristic
+    public HeuristicMode heuristicMode;
 
     /// <summary>
-    ///WARNING, do not use void <c>Start()</c> function, use this <c>AITankStart()</c> function instead if you want to use Start method from Monobehaviour.
-    ///Use this function to initialise your tank variables etc.
+    /// WARNING: Use <c>AITankStart()</c> instead of <c>Start()</c>.
+    /// Initializes variables and settings for the AI tank.
     /// </summary>
     public override void AITankStart()
     {
+        // Initialization logic if required
     }
 
     /// <summary>
-    ///WARNING, do not use void <c>Update()</c> function, use this <c>AITankUpdate()</c> function instead if you want to use Start method from Monobehaviour.
-    ///Function checks to see what is currently visible in the tank sensor and updates the Founds list. <code>First().Key</code> is used to get the first
-    ///element found in that dictionary list and is set as the target, based on tank health, ammo and fuel. 
+    /// WARNING: Use <c>AITankUpdate()</c> instead of <c>Update()</c>.
+    /// Implements AI behavior for the tank.
     /// </summary>
     public override void AITankUpdate()
     {
-        //Update all currently visible.
+        // Update visible objects
         enemyTanksFound = VisibleEnemyTanks;
         consumablesFound = VisibleConsumables;
         enemyBasesFound = VisibleEnemyBases;
 
-        //if low health or ammo, go searching
+        // Health or ammo is low - prioritize consumables
         if (TankCurrentHealth < 30 || TankCurrentAmmo < 4)
         {
-            //if there is more than 0 consumables visible
-            if (consumablesFound.Count > 0)
-            {
-                //get the first consumable from the list.
-                consumable = consumablesFound.First().Key;
-                FollowPathToWorldPoint(consumable, 1f, heuristicMode);
-                t += Time.deltaTime;
-                if (t > 10)
-                {
-                    GenerateNewRandomWorldPoint();
-                    t = 0;
-                }
-            }
-            else
-            {
-                enemyTank = null;
-                consumable = null;
-                enemyBase = null;
-                FollowPathToRandomWorldPoint(1f, heuristicMode);
-            }
+            SearchForConsumables();
         }
         else
         {
-            //if there is a enemy tank found
-            if (enemyTanksFound.Count > 0 && enemyTanksFound.First().Key != null)
+            // Prioritize targets based on visibility and proximity
+            if (enemyTanksFound.Count > 0)
             {
-                enemyTank = enemyTanksFound.First().Key;
-                if (enemyTank != null)
-                {
-                    //get closer to target, and fire
-                    if (Vector3.Distance(transform.position, enemyTank.transform.position) < 25f)
-                    {
-                        TurretFireAtPoint(enemyTank);
-                    }
-                    //else follow
-                    else
-                    {
-                        FollowPathToWorldPoint(enemyTank, 1f, heuristicMode);
-                    }
-                }
-            }
-            else if (consumablesFound.Count > 0)
-            {
-                //if consumables are found, go to it.
-                consumable = consumablesFound.First().Key;
-                FollowPathToWorldPoint(consumable, 1f, heuristicMode);
+                AttackEnemyTank();
             }
             else if (enemyBasesFound.Count > 0)
             {
-                //if base if found
-                enemyBase = enemyBasesFound.First().Key;
-                if (enemyBase != null)
-                {
-                    //go close to it and fire
-                    if (Vector3.Distance(transform.position, enemyBase.transform.position) < 25f)
-                    {
-                        TurretFireAtPoint(enemyBase);
-                    }
-                    else
-                    {
-                        FollowPathToWorldPoint(enemyBase, 1f, heuristicMode);
-
-                    }
-                }
+                AttackEnemyBase();
+            }
+            else if (consumablesFound.Count > 0)
+            {
+                SearchForConsumables();
             }
             else
             {
-                //searching
-                enemyTank = null;
-                consumable = null;
-                enemyBase = null;
-                FollowPathToRandomWorldPoint(1f, heuristicMode);
-                t += Time.deltaTime;
-                if (t > 10)
-                {
-                    GenerateNewRandomWorldPoint();
-                    t = 0;
-                }
+                // Random exploration
+                ExploreRandomly();
             }
-            
         }
     }
 
     /// <summary>
-    ///WARNING, do not use void <c>OnCollisionEnter()</c> function, use this <c>AIOnCollisionEnter()</c> function instead if you want to use OnColiisionEnter function from Monobehaviour.
-    ///Use this function to see if tank has collided with anything.
+    /// WARNING: Use <c>AIOnCollisionEnter()</c> instead of <c>OnCollisionEnter()</c>.
+    /// Handles collision events for the AI tank.
     /// </summary>
+    /// <param name="collision">Collision data.</param>
     public override void AIOnCollisionEnter(Collision collision)
     {
+        // Handle collisions if necessary
+    }
+
+    /// <summary>
+    /// Handles behavior when searching for consumables.
+    /// </summary>
+    private void SearchForConsumables()
+    {
+        if (consumablesFound.Count > 0)
+        {
+            consumable = consumablesFound.First().Key;
+            FollowPathToWorldPoint(consumable, 1f, heuristicMode);
+        }
+        else
+        {
+            ExploreRandomly();
+        }
+    }
+
+    /// <summary>
+    /// Handles behavior when attacking enemy tanks.
+    /// </summary>
+    private void AttackEnemyTank()
+    {
+        enemyTank = enemyTanksFound.First().Key;
+        if (enemyTank != null)
+        {
+            if (Vector3.Distance(transform.position, enemyTank.transform.position) < 25f)
+            {
+                TurretFireAtPoint(enemyTank);
+            }
+            else
+            {
+                FollowPathToWorldPoint(enemyTank, 1f, heuristicMode);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles behavior when attacking enemy bases.
+    /// </summary>
+    private void AttackEnemyBase()
+    {
+        enemyBase = enemyBasesFound.First().Key;
+        if (enemyBase != null)
+        {
+            if (Vector3.Distance(transform.position, enemyBase.transform.position) < 25f)
+            {
+                TurretFireAtPoint(enemyBase);
+            }
+            else
+            {
+                FollowPathToWorldPoint(enemyBase, 1f, heuristicMode);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles random exploration when no targets are visible.
+    /// </summary>
+    private void ExploreRandomly()
+    {
+        FollowPathToRandomWorldPoint(1f, heuristicMode);
+        timer += Time.deltaTime;
+        if (timer > 10f)
+        {
+            GenerateNewRandomWorldPoint();
+            timer = 0f;
+        }
     }
 
 
