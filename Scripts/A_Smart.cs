@@ -11,6 +11,7 @@ using static AStar;
 ///    - Logging actions like targeting an enemy, collecting a consumable, or exploring a random point.
 /// 2. Improved testing functionality for tracking AI behavior in different scenarios.
 ///    - Added timestamps and tank stats (e.g., health, ammo) in logs.
+/// 
 ///
 /// KORNEL :: Update1 :: 
 /// 1. Added FSM (Finite State Machine) logic to control the tank:
@@ -58,7 +59,7 @@ public class A_Smart : AITank
 
 
         // Health or ammo is low - prioritize consumables
-        if (TankCurrentHealth < 30 || TankCurrentAmmo < 4)
+        if (TankCurrentHealth < 4 || TankCurrentAmmo < 1)
         {
             Debug.Log("[AITankUpdate] Health or ammo is low. Searching for consumables...");
             SearchForConsumables();
@@ -115,6 +116,7 @@ public class A_Smart : AITank
     private void AttackEnemyTank()
     {
         enemyTank = enemyTanksFound.First().Key;
+
         if (enemyTank != null)
         {
             if (Vector3.Distance(transform.position, enemyTank.transform.position) < 25f)
@@ -155,7 +157,7 @@ public class A_Smart : AITank
         Debug.Log("[ExploreRandomly] Exploring a random point...");
         FollowPathToRandomWorldPoint(1f, heuristicMode);
         timer += Time.deltaTime;
-        if (timer > 10f)
+        if (timer > 20f)
         {
             Debug.Log("[ExploreRandomly] Generating new random point...");
             GenerateNewRandomWorldPoint();
