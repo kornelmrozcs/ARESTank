@@ -17,11 +17,27 @@ public class A_Smart : AITank
     // Pathfinding heuristic
     public HeuristicMode heuristicMode;
 
+    public GameObject strafeTarget;
+
     public override void AITankStart()
     {
         Debug.Log("[A_Smart] Tank AI Initialized.");
-        ChangeState(new ExploreState(this)); // Start with ExploreState
+
+        // Create a temporary target GameObject for strafing
+        strafeTarget = new GameObject("StrafeTarget");
+        strafeTarget.transform.SetParent(transform); // Attach to the tank
+
+        // Start in AttackState with no target initially
+        GameObject initialTarget = null;
+
+        if (enemyTanksFound.Count > 0)
+        {
+            initialTarget = enemyTanksFound.First().Key; // Attempt to get an initial target
+        }
+
+        ChangeState(new AttackState(this, initialTarget));
     }
+
 
     public override void AITankUpdate()
     {
@@ -56,32 +72,46 @@ public class A_Smart : AITank
         a_FollowPathToPoint(target, normalizedSpeed, heuristic);
     }
 
+    public void TurretFaceWorldPoint(GameObject target)
+    {
+        if (target != null)
+        {
+            a_FaceTurretToPoint(target); // Calls the protected method from AITank
+        }
+        else
+        {
+            Debug.LogWarning("[A_Smart] Target is null. Cannot rotate turret.");
+        }
+    }
+
+    public float GetAmmoLevel()
+    {
+        return a_GetAmmoLevel;
+    }
+
+    public float GetHealthLevel()
+    {
+        return a_GetHealthLevel;
+    }
+
+    public float GetFuelLevel()
+    {
+        return a_GetFuelLevel;
+    }
+
+    public void LockVisionOnTarget(GameObject target)
+    {
+        if (target != null)
+        {
+            // Rotate the tank's turret or vision cone to face the target
+            a_FaceTurretToPoint(target); // Ensure the turret is always aiming at the enemy
+            Debug.Log("[A_Smart] Locking vision on target: " + target.name);
+        }
+        else
+        {
+            Debug.LogWarning("[A_Smart] Cannot lock vision. Target is null.");
+        }
+    }
+
 }
 
-
-
-
-/// <summary>
-/// KORNEL :: Update2 :: 
-/// 1. Added debugging logs to trace AI decisions, state transitions, and key actions:
-///    - Logging FSM decisions (e.g., switching to Attack, Search, or Explore states).
-///    - Logging actions like targeting an enemy, collecting a consumable, or exploring a random point.
-/// 2. Improved testing functionality for tracking AI behavior in different scenarios.
-///    - Added timestamps and tank stats (e.g., health, ammo) in logs.
-/// 
-///
-/// KORNEL :: Update1 :: 
-/// 1. Added FSM (Finite State Machine) logic to control the tank:
-///    - Searching for consumables when health or ammo is low.
-///    - Attacking visible enemy tanks and bases.
-///    - Exploring random points when no targets are available.
-/// 2. Utilized functions from the base class (AITank):
-///    - Leveraged methods for pathfinding, path-following, random point generation, and turret firing.
-///    - Used properties from the base class to access critical variables (e.g., health level, ammo level, etc.).
-/// 3. Improved code structure:
-///    - Split logic into separate functions for better readability and maintainability.
-///    - Each function (e.g., SearchForConsumables, AttackEnemyTank) has a clearly defined purpose and comments.
-/// </summary>
-/// 
-
-// Utility methods from the base class
