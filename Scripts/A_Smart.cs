@@ -25,11 +25,34 @@ public class A_Smart : AITank
 
     public override void AITankUpdate()
     {
-        currentState?.Execute();
+        // Check if critical needs (low health/ammo) exist
+        if (a_GetHealthLevel < 4 || a_GetAmmoLevel < 1)
+        {
+            Debug.Log("[A_Smart] Critical needs detected! Switching to CollectState.");
+            ChangeState(new CollectState(this));
+            return;
+        }
+
+        // If enemies are found, enter AttackState
+        if (enemyTanksFound.Count > 0)
+        {
+            GameObject target = enemyTanksFound.First().Key; // Get the first visible enemy
+            Debug.Log("[A_Smart] Enemies detected! Switching to AttackState.");
+            ChangeState(new AttackState(this, target)); // Pass the target GameObject to AttackState
+            return;
+        }
+
+        // Default to exploring if no immediate needs or threats
+        if (!(currentState is ExploreState))
+        {
+            Debug.Log("[A_Smart] No critical needs or threats. Exploring...");
+            ChangeState(new ExploreState(this));
+        }
     }
 
     public void ChangeState(TankState newState)
     {
+        Debug.Log($"[A_Smart] Changing state from {currentState?.GetType().Name} to {newState.GetType().Name}.");
         currentState?.Exit();
         currentState = newState;
         currentState?.Enter();
@@ -56,32 +79,14 @@ public class A_Smart : AITank
         a_FollowPathToPoint(target, normalizedSpeed, heuristic);
     }
 
+    public void TurretFireAtPoint(GameObject target)
+    {
+        a_FireAtPoint(target); // Calls the protected method in the base class
+    }
+
+
 }
 
 
 
 
-/// <summary>
-/// KORNEL :: Update2 :: 
-/// 1. Added debugging logs to trace AI decisions, state transitions, and key actions:
-///    - Logging FSM decisions (e.g., switching to Attack, Search, or Explore states).
-///    - Logging actions like targeting an enemy, collecting a consumable, or exploring a random point.
-/// 2. Improved testing functionality for tracking AI behavior in different scenarios.
-///    - Added timestamps and tank stats (e.g., health, ammo) in logs.
-/// 
-///
-/// KORNEL :: Update1 :: 
-/// 1. Added FSM (Finite State Machine) logic to control the tank:
-///    - Searching for consumables when health or ammo is low.
-///    - Attacking visible enemy tanks and bases.
-///    - Exploring random points when no targets are available.
-/// 2. Utilized functions from the base class (AITank):
-///    - Leveraged methods for pathfinding, path-following, random point generation, and turret firing.
-///    - Used properties from the base class to access critical variables (e.g., health level, ammo level, etc.).
-/// 3. Improved code structure:
-///    - Split logic into separate functions for better readability and maintainability.
-///    - Each function (e.g., SearchForConsumables, AttackEnemyTank) has a clearly defined purpose and comments.
-/// </summary>
-/// 
-
-// Utility methods from the base class

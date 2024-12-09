@@ -3,44 +3,45 @@ using UnityEngine;
 
 public class AttackState : TankState
 {
-    public AttackState(A_Smart tank) : base(tank) { }
+    private GameObject target; // The target to attack
+
+    public AttackState(A_Smart tank, GameObject target) : base(tank)
+    {
+        this.target = target;
+    }
 
     public override void Enter()
     {
-        Debug.Log("[AttackState] Entered.");
+        Debug.Log("[AttackState] Entered. Target: " + target.name);
     }
 
     public override void Execute()
     {
-        if (tank.enemyTanksFound.Count > 0)
+        // Check if the target is still valid
+        if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
-            GameObject target = tank.enemyTanksFound.First().Key;
+            Debug.Log("[AttackState] Lost target. Switching to ExploreState.");
+            tank.ChangeState(new ExploreState(tank));
+            return;
+        }
 
-            if (target != null)
-            {
-                if (Vector3.Distance(tank.transform.position, target.transform.position) < 25f)
-                {
-                    Debug.Log("[AttackState] Firing at enemy tank.");
-                    tank.FireAtPoint(target); // Use the public wrapper method
-                    tank.ChangeState(new SearchState(tank)); // Transition to SearchState
-                }
-                else
-                {
-                    Debug.Log("[AttackState] Moving towards enemy tank.");
-                    tank.FollowPathToPoint(target, 1f, tank.heuristicMode); // Already fixed with a wrapper if needed
-                }
-            }
+        // Move towards the target and attack
+        float distance = Vector3.Distance(tank.transform.position, target.transform.position);
+        if (distance < 25f)
+        {
+            Debug.Log("[AttackState] In range. Attacking target: " + target.name);
+            tank.TurretFireAtPoint(target);
         }
         else
         {
-            Debug.Log("[AttackState] No enemies found. Exploring...");
-            tank.ChangeState(new ExploreState(tank)); // Transition to ExploreState
+            Debug.Log("[AttackState] Target out of range. Moving closer to: " + target.name);
+            tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
         }
     }
 
     public override void Exit()
     {
-        Debug.Log("[AttackState] Exiting.");
+        Debug.Log("[AttackState] Exiting. Ceasing attack on target: " + target?.name);
     }
 }
 
