@@ -89,7 +89,7 @@ public class AttackState : TankState
         if (tank.GetHealthLevel() < 10)
         {
             Debug.Log("[AttackState] Low health detected. Retreating to SearchState.");
-            tank.ChangeState(new SearchState(tank));
+            tank.ChangeState(new ExploreState(tank));
             return;
         }
     }

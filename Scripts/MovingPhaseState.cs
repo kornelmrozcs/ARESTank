@@ -3,15 +3,13 @@ using UnityEngine;
 public class MovingPhaseState : TankState
 {
     private GameObject target;
-    private float circularRadius = 15f; // Radius for circular motion
+    private float moveDuration = 3f; // Total time for moving around
+    private float moveTimer = 0f; // Timer for movement phase
+    private float circularRadius = 20f; // Radius for circular motion
     private float circularSpeed = 2f; // Speed of circular motion
     private float angle = 0f; // Angle for circular motion
-    private bool waitingForEnemyFire = true; // Whether the tank is dodging and waiting for the enemy to fire
-    private float responseCooldown = 0.5f; // Cooldown between detecting a shot and shooting back
-    private float responseTimer = 0f;
-
-    private float moveDuration = 3f; // Total time for moving around
-    private float moveTimer = 3f; // Timer for movement phase
+    private Vector3[] circularPathPoints; // Pre-calculated path points
+    private int currentPointIndex = 0; // Current path point index
 
     public MovingPhaseState(A_Smart tank, GameObject target = null) : base(tank)
     {
@@ -21,10 +19,12 @@ public class MovingPhaseState : TankState
     public override void Enter()
     {
         Debug.Log("[MovingPhaseState] Entered.");
-        angle = 0f; // Reset angle
-        responseTimer = 0f;
         moveTimer = 0f; // Reset move timer
-        waitingForEnemyFire = true; // Initially waiting for the enemy to fire
+        angle = 0f; // Reset circular angle
+        currentPointIndex = 0; // Start from the first point
+
+        // Pre-calculate the circular path
+        circularPathPoints = CalculateCircularPath(target.transform.position, circularRadius, 12); // Adjust number of points for smoother path
     }
 
     public override void Execute()
@@ -36,20 +36,20 @@ public class MovingPhaseState : TankState
             return;
         }
 
-        // Lock the turret onto the target to maintain aggression
+        // Lock the turret onto the target
         tank.TurretFaceWorldPoint(target);
 
-        // Calculate the circular position around the target
-        angle += circularSpeed * Time.deltaTime; // Increment the angle
-        if (angle >= 360f) angle -= 360f; // Keep the angle within bounds
+        // Move to the next circular path point
+        Vector3 currentPoint = circularPathPoints[currentPointIndex];
+        Debug.Log("[MovingPhaseState] Moving to path point: " + currentPoint);
+        tank.FollowPathToPoint(new GameObject { transform = { position = currentPoint } }, 1f, tank.heuristicMode);
 
-        Vector3 directionToTarget = (target.transform.position - tank.transform.position).normalized;
-        Vector3 perpendicularDirection = Vector3.Cross(directionToTarget, Vector3.up).normalized; // Perpendicular to the target
-        Vector3 circularPosition = target.transform.position + (Mathf.Cos(angle) * directionToTarget + Mathf.Sin(angle) * perpendicularDirection) * circularRadius;
-
-        // Move to the circular position
-        Debug.Log("[MovingPhaseState] Moving in circular motion around target: " + target.name);
-        tank.FollowPathToPoint(new GameObject { transform = { position = circularPosition } }, 1f, tank.heuristicMode);
+        // Check if close to the current point
+        if (Vector3.Distance(tank.transform.position, currentPoint) < 2f) // Adjust tolerance as needed
+        {
+            Debug.Log("[MovingPhaseState] Reached path point. Moving to the next point.");
+            currentPointIndex = (currentPointIndex + 1) % circularPathPoints.Length; // Loop through points
+        }
 
         // Increment the move timer
         moveTimer += Time.deltaTime;
@@ -59,27 +59,6 @@ public class MovingPhaseState : TankState
         {
             Debug.Log("[MovingPhaseState] Completed movement phase. Switching back to AttackState.");
             tank.ChangeState(new AttackState(tank, target));
-            return;
-        }
-
-        // Check if enemy fired a bullet
-        if (EnemyTankFired()) // Replace this with actual detection logic
-        {
-            Debug.Log("[MovingPhaseState] Enemy fired! Preparing to counterattack.");
-            waitingForEnemyFire = false;
-            responseTimer = responseCooldown; // Start the cooldown before counterattacking
-        }
-
-        // Counterattack logic
-        if (!waitingForEnemyFire)
-        {
-            responseTimer -= Time.deltaTime;
-            if (responseTimer <= 0f)
-            {
-                Debug.Log("[MovingPhaseState] Counterattacking target: " + target.name);
-                tank.FireAtPoint(target);
-                waitingForEnemyFire = true; // Go back to dodging
-            }
         }
     }
 
@@ -88,10 +67,18 @@ public class MovingPhaseState : TankState
         Debug.Log("[MovingPhaseState] Exiting.");
     }
 
-    private bool EnemyTankFired()
+    private Vector3[] CalculateCircularPath(Vector3 center, float radius, int numPoints)
     {
-        // Placeholder for actual logic to detect if the enemy fired
-        // This could be implemented using collision detection, projectile tracking, or game event hooks
-        return Random.value < 0.01f; // Simulate random enemy fire for testing
+        Vector3[] points = new Vector3[numPoints];
+        float angleStep = 360f / numPoints;
+
+        for (int i = 0; i < numPoints; i++)
+        {
+            float currentAngle = i * angleStep * Mathf.Deg2Rad;
+            Vector3 direction = new Vector3(Mathf.Cos(currentAngle), 0, Mathf.Sin(currentAngle));
+            points[i] = center + direction * radius;
+        }
+
+        return points;
     }
 }
