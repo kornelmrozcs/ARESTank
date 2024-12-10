@@ -4,10 +4,9 @@ using UnityEngine;
 public class AttackState : TankState
 {
     private GameObject target;
-    private float actionTimer = 0f; // Timer for controlling firing and moving phases
-    private const float fireDuration = 1f; // Time spent firing in each burst
-    private const float moveDuration = 2f; // Time spent moving between bursts
-    private bool isFiring = true; // Toggle between firing and moving
+    private GameObject enemyBase;
+    private float fireDuration = 1f; // Fire for 1 second before moving
+    private float fireTimer = 1f;
 
     public AttackState(A_Smart tank, GameObject target = null) : base(tank)
     {
@@ -17,12 +16,35 @@ public class AttackState : TankState
     public override void Enter()
     {
         Debug.Log("[AttackState] Entered.");
-        actionTimer = 0f;
-        isFiring = true; // Start with firing
+        fireTimer = 0f; // Reset the fire timer
     }
 
     public override void Execute()
     {
+        // Check for enemy base
+        enemyBase = tank.enemyBasesFound.FirstOrDefault().Key;
+
+        if (enemyBase != null)
+        {
+            Debug.Log("[AttackState] Enemy base detected: " + enemyBase.name);
+            float baseDistance = Vector3.Distance(tank.transform.position, enemyBase.transform.position);
+
+            if (baseDistance < 25f)
+            {
+                Debug.Log("[AttackState] Firing at enemy base: " + enemyBase.name);
+                tank.TurretFaceWorldPoint(enemyBase);
+                tank.FireAtPoint(enemyBase);
+                return; // Prioritize attacking the base
+            }
+            else
+            {
+                Debug.Log("[AttackState] Moving closer to enemy base: " + enemyBase.name);
+                tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
+                return; // Prioritize moving toward the base
+            }
+        }
+
+        // Continue with enemy tank logic
         if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
             Debug.Log("[AttackState] No valid target. Switching to ExploreState.");
@@ -30,47 +52,41 @@ public class AttackState : TankState
             return;
         }
 
-        // Always aim at the target
+        // Lock the turret onto the target
         tank.TurretFaceWorldPoint(target);
-
-        // Lock the cone of vision on the enemy
-        tank.LockVisionOnTarget(target);
 
         // Calculate the distance to the target
         float distance = Vector3.Distance(tank.transform.position, target.transform.position);
 
-        // Alternate between firing and moving
-        actionTimer += Time.deltaTime;
-
-        if (isFiring && actionTimer < fireDuration)
+        if (distance < 25f)
         {
-            if (distance < 25f)
-            {
-                Debug.Log("[AttackState] Firing burst at target: " + target.name);
-                tank.FireAtPoint(target); // Shoot while strafing or stationary
-            }
-            else
-            {
-                Debug.Log("[AttackState] Target out of range. Moving closer: " + target.name);
-                tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
-            }
-        }
-        else if (!isFiring && actionTimer < moveDuration + fireDuration)
-        {
-            Debug.Log("[AttackState] Moving to reposition.");
+            // Fire at the target
+            Debug.Log("[AttackState] Firing at target: " + target.name);
+            tank.FireAtPoint(target);
 
-            // Generate a new random position to move around
-            tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
+            // Increment the fire timer
+            fireTimer += Time.deltaTime;
+
+            if (fireTimer >= fireDuration)
+            {
+                Debug.Log("[AttackState] Fired for 1 second. Switching to MovingPhaseState.");
+                tank.ChangeState(new MovingPhaseState(tank, target)); // Transition to MovingPhaseState
+                return;
+            }
         }
         else
         {
-            // Reset timer and toggle firing/moving
-            actionTimer = 0f;
-            isFiring = !isFiring;
+            // Move closer to the target if out of range
+            Debug.Log("[AttackState] Target out of range. Moving closer to: " + target.name);
+            tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
+
+            // Fire while moving closer
+            Debug.Log("[AttackState] Firing at target while moving: " + target.name);
+            tank.FireAtPoint(target);
         }
 
         // Retreat if health is critically low
-        if (tank.GetHealthLevel() < 25)
+        if (tank.GetHealthLevel() < 10)
         {
             Debug.Log("[AttackState] Low health detected. Retreating to SearchState.");
             tank.ChangeState(new SearchState(tank));

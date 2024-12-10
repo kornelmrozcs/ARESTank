@@ -3,45 +3,64 @@ using UnityEngine;
 
 public class ExploreState : TankState
 {
-    private float explorationTimer = 0f; // Timer for regenerating random points
-    private const float explorationDuration = 5f; // Time before generating a new point
+    private float explorationTimer = 0f;
+    private const float maxExplorationTime = 10f; // Time before generating a new random point
 
     public ExploreState(A_Smart tank) : base(tank) { }
 
     public override void Enter()
     {
         Debug.Log("[ExploreState] Entered.");
+        explorationTimer = 0f;
     }
 
     public override void Execute()
     {
         Debug.Log("[ExploreState] Scanning and exploring...");
 
-        // Prioritize consumables if health, ammo, or fuel is low
-        if (tank.GetHealthLevel() < 50 || tank.GetAmmoLevel() < 3 || tank.GetFuelLevel() < 20)
+        // Prioritize collecting consumables if any are visible
+        if (tank.consumablesFound.Count > 0)
         {
-            Debug.Log("[ExploreState] Searching for consumables...");
-            GameObject closestConsumable = tank.consumablesFound
-                .OrderBy(c => c.Value) // Sort by distance
-                .Select(c => c.Key)
-                .FirstOrDefault();
-
-            if (closestConsumable != null)
+            GameObject consumable = tank.consumablesFound.First().Key; // Get the first visible consumable
+            if (consumable != null)
             {
-                Debug.Log("[ExploreState] Moving towards consumable: " + closestConsumable.name);
-                tank.FollowPathToPoint(closestConsumable, 1f, tank.heuristicMode);
-                return;
+                Debug.Log("[ExploreState] Collecting visible consumable: " + consumable.name);
+                tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
+                return; // Skip exploration and attacking to collect the consumable
             }
         }
 
-        // Perform exploration behavior (random point generation)
-        explorationTimer += Time.deltaTime;
+        // Check if an enemy base is found
+        if (tank.enemyBasesFound.Count > 0)
+        {
+            GameObject enemyBase = tank.enemyBasesFound.First().Key; // Get the first visible enemy base
+            if (enemyBase != null)
+            {
+                Debug.Log("[ExploreState] Enemy base found. Moving to attack base: " + enemyBase.name);
 
-        if (explorationTimer >= explorationDuration)
+                // Move towards the base and attack if in range
+                if (Vector3.Distance(tank.transform.position, enemyBase.transform.position) < 25f)
+                {
+                    Debug.Log("[ExploreState] Attacking enemy base: " + enemyBase.name);
+                    tank.FireAtPoint(enemyBase);
+                }
+                else
+                {
+                    Debug.Log("[ExploreState] Moving closer to enemy base: " + enemyBase.name);
+                    tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
+                }
+
+                return; // Focus on the base and stop other behaviors
+            }
+        }
+
+        // Continue exploration behavior
+        explorationTimer += Time.deltaTime;
+        if (explorationTimer >= maxExplorationTime)
         {
             Debug.Log("[ExploreState] Generating new random exploration point...");
-            tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
-            explorationTimer = 0f; // Reset the timer
+            tank.FollowPathToRandomPoint(1f, tank.heuristicMode); // Corrected method call
+            explorationTimer = 0f; // Reset exploration timer
         }
 
         tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
@@ -56,12 +75,6 @@ public class ExploreState : TankState
                 tank.ChangeState(new AttackState(tank, target)); // Pass the target GameObject to AttackState
                 return;
             }
-        }
-
-        // Debug if no consumables or enemies are found
-        if (tank.enemyTanksFound.Count == 0 && tank.consumablesFound.Count == 0)
-        {
-            Debug.Log("[ExploreState] No visible threats or resources. Continuing exploration...");
         }
     }
 
