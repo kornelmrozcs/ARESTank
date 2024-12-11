@@ -4,9 +4,9 @@ using System.Collections;
 public class DodgingState : TankState
 {
     private GameObject target;
-    private float dodgeDuration = 2f; // Adjusted dodge duration for more dodging time
+    private float dodgeDuration = 1.7f; // Adjusted dodge duration for more dodging time
     private float dodgeTimer = 0f;
-    private float dodgeDistance = 3.5f; // Distance the tank moves left or right while dodging
+    private float dodgeDistance = 3f; // Distance the tank moves left or right while dodging
     private float maxDistanceFromTarget = 35f; // Max distance before we consider losing sight of the DumbTank
 
     public DodgingState(A_Smart tank, GameObject target) : base(tank)
