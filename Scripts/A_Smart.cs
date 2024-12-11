@@ -23,7 +23,33 @@ public class A_Smart : AITank
     public GameObject strafeTarget;
 
     // Speed adjustments
-    private float reducedSpeed = 0.3f; // Reduced speed for faster stopping
+    private float reducedSpeed = 0.5f; // Reduced speed for faster stopping
+
+    // Property to access ammo level
+    // Ammo tracking
+    private float previousAmmoLevel = 0f;
+
+    public float TankCurrentAmmo
+    {
+        get
+        {
+            return a_GetAmmoLevel; // Call the protected method
+        }
+    }
+
+    // Firing event handler: listens for when DumbTank fires
+    private void HandleFiringMessage(string logString, string stackTrace, LogType type)
+    {
+        if (logString.Contains("has Fired!"))
+        {
+            // Decrease ammo by 1 when firing
+            if (TankCurrentAmmo > 0)
+            {
+                previousAmmoLevel = TankCurrentAmmo; // Save previous ammo level for comparison
+                Debug.Log("[A_Smart] Ammo reduced. Current Ammo: " + TankCurrentAmmo);
+            }
+        }
+    }
 
     public override void AITankStart()
     {
@@ -35,15 +61,11 @@ public class A_Smart : AITank
 
         // Start in ExploreState if no enemies are found initially
         GameObject initialTarget = enemyTanksFound.Count > 0 ? enemyTanksFound.First().Key : null;
-        if (initialTarget != null)
-        {
-            ChangeState(new AttackState(this, initialTarget));
-        }
-        else
         {
             ChangeState(new ExploreState(this));
         }
     }
+
 
     public override void AITankUpdate()
     {
@@ -71,23 +93,23 @@ public class A_Smart : AITank
         currentState.Enter();
     }
 
-    // You will also need to handle the transition into the ChaseState when the DumbTank's HP is low
+    // You will now directly handle transitioning to ChaseState if an enemy is detected
     public void OnEnemyDetected(GameObject enemy)
     {
         if (enemyTanksFound.Count > 0)
         {
             GameObject detectedEnemy = enemyTanksFound.First().Key;
 
-            // Check if the detected enemy's health is 25 or less (using the GetTankHealthLevel method)
+            // Check if the detected enemy's health is low (using the GetTankHealthLevel method)
             if (detectedEnemy != null && detectedEnemy.GetComponent<DumbTank>().TankCurrentHealth <= 25f)
             {
-                // Start the chase + sniping behavior if health is low
+                // Start chasing directly if health is low
                 ChangeState(new ChaseState(this, detectedEnemy));
             }
             else
             {
-                // Proceed with standard behavior if health is higher
-                ChangeState(new AttackState(this, detectedEnemy));
+                // Start chasing (no longer using AttackState)
+                ChangeState(new ChaseState(this, detectedEnemy));
             }
         }
     }

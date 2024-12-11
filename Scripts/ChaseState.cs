@@ -1,12 +1,9 @@
-using System.Collections;
-using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ChaseState : TankState
 {
     private GameObject target;
-    private const float chaseRange = 35f; // Maximum range to start chasing
-    private const float snipeRange = 25f; // Range within which we transition to Sniping
 
     public ChaseState(A_Smart tank, GameObject target) : base(tank)
     {
@@ -20,23 +17,36 @@ public class ChaseState : TankState
 
     public override void Execute()
     {
-        // Check if the DumbTank is within sniping range
+        // Chase the target, move towards the enemy tank
         float distance = Vector3.Distance(tank.transform.position, target.transform.position);
-        if (distance <= snipeRange)
+        if (distance > 20f)
         {
-            Debug.Log("[ChaseState] Target within sniping range. Transitioning to SnipeState.");
-            tank.ChangeState(new SnipeState(tank, target)); // Transition to SnipeState
-            return;
+            tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
+        }
+        else
+        {
+            // Switch to SnipeState to start shooting from close range
+            Debug.Log("[ChaseState] Close enough, transitioning to SnipeState.");
+            tank.ChangeState(new SnipeState(tank, target));
         }
 
-        // Chase the DumbTank if it's outside sniping range
-        Debug.Log("[ChaseState] Pursuing target.");
-        tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
-
-        // If the DumbTank moves out of range, keep chasing until it's in range for sniping
-        if (distance > chaseRange)
+        // Check for consumables while chasing, prioritize them
+        if (tank.consumablesFound.Count > 0)
         {
-            Debug.Log("[ChaseState] Target moved too far. Keeping pursuit.");
+            GameObject consumable = tank.consumablesFound.First().Key;
+            if (consumable != null)
+            {
+                Debug.Log("[ChaseState] Collecting consumable: " + consumable.name);
+                tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
+                return;
+            }
+        }
+
+        // If health/fuel/ammo are low, go back to ExploreState
+        if (tank.GetHealthLevel() < 20f || tank.GetFuelLevel() < 15f || tank.GetAmmoLevel() < 2)
+        {
+            Debug.Log("[ChaseState] Health/Fuel/Ammo low. Transitioning to ExploreState.");
+            tank.ChangeState(new ExploreState(tank));
         }
     }
 

@@ -23,7 +23,7 @@ public class ExploreState : TankState
         {
             Debug.Log("[ExploreState] Enemy tank detected us. Returning to AttackState.");
             // Switch to attack state if an enemy is detected and we don't see them
-            tank.ChangeState(new AttackState(tank, tank.enemyTanksFound.FirstOrDefault().Key));
+            tank.ChangeState(new ChaseState(tank, tank.enemyTanksFound.FirstOrDefault().Key));
             return;
         }
 
@@ -41,8 +41,8 @@ public class ExploreState : TankState
                     return;
                 }
 
-                Debug.Log("[ExploreState] Enemy detected. Switching to AttackState: " + target.name);
-                tank.ChangeState(new AttackState(tank, target)); // Engage the enemy
+                Debug.Log("[ExploreState] Enemy detected. Switching to SnipeState: " + target.name);
+                tank.ChangeState(new DodgingState(tank, target)); // Engage the enemy
                 return;
             }
         }
@@ -76,7 +76,7 @@ public class ExploreState : TankState
                 else
                 {
                     Debug.Log("[ExploreState] Moving closer to enemy base: " + enemyBase.name);
-                    tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
+                    tank.FollowPathToPoint(enemyBase.transform.position, 1f, tank.heuristicMode);
                 }
 
                 return; // Focus on the base and stop other behaviors
