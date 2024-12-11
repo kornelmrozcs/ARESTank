@@ -1,3 +1,4 @@
+//prepare retreat file from dumbtank
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +9,7 @@ using static AStar;
 /// Class <c>SmartTank</c> is an example class used to demonstrate how to use the functions available from the <c>AITank</c> base class. 
 /// Copy this class when creating your smart tank class.
 /// </summary>
-public class SmartTank : AITank
+public class A_RetreatTankFSM : AITank
 {
     public Dictionary<GameObject, float> enemyTanksFound = new Dictionary<GameObject, float>();     /*!< <c>enemyTanksFound</c> stores all tanks that are visible within the tanks sensor. */
     public Dictionary<GameObject, float> consumablesFound = new Dictionary<GameObject, float>();    /*!< <c>consumablesFound</c> stores all consumables that are visible within the tanks sensor. */

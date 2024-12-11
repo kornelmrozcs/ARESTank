@@ -5,9 +5,8 @@ using static AStar;
 using UnityEngine;
 using System.Collections.Generic;
 
-public class A_Smart : AITank
+public class A_SmartFSM : AITank
 {
-    private TankState currentState;
 
     // Visible entities
     public Dictionary<GameObject, float> enemyTanksFound => a_TanksFound;
@@ -21,7 +20,7 @@ public class A_Smart : AITank
 
     public override void AITankStart()
     {
-        //InitializeStateMachine();
+        InitializeStateMachine();
 
         Debug.Log("[A_Smart] Tank AI Initialized.");
 
@@ -37,34 +36,23 @@ public class A_Smart : AITank
             initialTarget = enemyTanksFound.First().Key; // Attempt to get an initial target
         }
 
-        ChangeState(new AttackState(this, initialTarget));
-        
     }
 
-    /*private void InitializeStateMachine()
+    private void InitializeStateMachine()
     {
-        Dictionary<Type, A_Smart> states = new Dictionary<Type, A_Smart>();
-
-        states.Add(typeof(AttackState), new AttackState(this));
-        states.Add(typeof(ExploreState),new ExploreState(this));
-      states.Add(typeof(ChaseState), new ChaseState(this));
+        Dictionary<Type, A_TankStateFSM> states = new Dictionary<Type, A_TankStateFSM>();
+        
+        
+        states.Add(typeof(A_SearchStateFSM),new A_SearchStateFSM(this));
+        states.Add(typeof(A_ChaseStateFSM), new A_ChaseStateFSM(this));
+        //states.Add(typeof(A_AttackStateFSM), new A_AttackStateFSM(this));
+        
+        /*
         states.Add(typeof(AmbushState), new AmbushState(this));
         states.Add(typeof(RetreatState), new RetreatState(this));
-        states.Add(typeof(WaitState), new WaitState(this));
-    }*/
+        states.Add(typeof(WaitState), new WaitState(this));*/
 
-
-
-    public override void AITankUpdate()
-    {
-        currentState?.Execute();
-    }
-
-    public void ChangeState(TankState newState)
-    {
-        currentState?.Exit();
-        currentState = newState;
-        currentState?.Enter();
+        GetComponent<A_StateMachineFSM>().SetStates(states);
     }
 
     public override void AIOnCollisionEnter(Collision collision)
@@ -132,6 +120,11 @@ public class A_Smart : AITank
     internal void FollowPathToPoint(Vector3 movePosition, float v, HeuristicMode heuristicMode)
     {
         throw new NotImplementedException();
+    }
+
+    public override void AITankUpdate()
+    {
+        
     }
 }
 

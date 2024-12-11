@@ -1,6 +1,7 @@
+using System;
 using UnityEngine;
 
-public class MovingPhaseState : TankState
+public class A_MovingPhaseStateFSM : A_TankStateFSM
 {
     private GameObject target;
     private float moveDuration = 3f; // Total time for moving around
@@ -11,12 +12,12 @@ public class MovingPhaseState : TankState
     private Vector3[] circularPathPoints; // Pre-calculated path points
     private int currentPointIndex = 0; // Current path point index
 
-    public MovingPhaseState(A_Smart tank, GameObject target = null) : base(tank)
+    public A_MovingPhaseStateFSM(A_SmartFSM tank, GameObject target = null) : base(tank)
     {
         this.target = target;
     }
 
-    public override void Enter()
+    public override Type Enter()
     {
         Debug.Log("[MovingPhaseState] Entered.");
         moveTimer = 0f; // Reset move timer
@@ -25,15 +26,16 @@ public class MovingPhaseState : TankState
 
         // Pre-calculate the circular path
         circularPathPoints = CalculateCircularPath(target.transform.position, circularRadius, 12); // Adjust number of points for smoother path
+        return null;
     }
 
-    public override void Execute()
+    public override Type Execute()
     {
         if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
             Debug.Log("[MovingPhaseState] Lost target. Switching to ExploreState.");
-            tank.ChangeState(new ExploreState(tank));
-            return;
+
+            return typeof(A_SearchStateFSM);
         }
 
         // Lock the turret onto the target
@@ -58,13 +60,15 @@ public class MovingPhaseState : TankState
         if (moveTimer >= moveDuration)
         {
             Debug.Log("[MovingPhaseState] Completed movement phase. Switching back to AttackState.");
-            tank.ChangeState(new AttackState(tank, target));
+            return typeof(A_AttackStateFSM);
         }
+        return null;
     }
 
-    public override void Exit()
+    public override Type Exit()
     {
         Debug.Log("[MovingPhaseState] Exiting.");
+        return null;
     }
 
     private Vector3[] CalculateCircularPath(Vector3 center, float radius, int numPoints)

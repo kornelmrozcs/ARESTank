@@ -1,18 +1,19 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public abstract class TankState
+public abstract class A_TankStateFSM
 {
-    protected A_Smart tank; // Reference to the main tank class
+    protected A_SmartFSM tank; // Reference to the main tank class
 
-    public TankState(A_Smart tank)
+    public A_TankStateFSM(A_SmartFSM tank)
     {
         this.tank = tank;
     }
 
-    public abstract void Enter(); // Called when the state is entered
-    public abstract void Execute(); // Called every frame
+    public abstract Type Enter(); // Called when the state is entered
+    public abstract Type Execute(); // Called every frame
     //public override void Wait();
-    public abstract void Exit(); // Called when the state is exited
+    public abstract Type Exit(); // Called when the state is exited
 }
