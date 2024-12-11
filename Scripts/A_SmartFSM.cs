@@ -21,6 +21,8 @@ public class A_Smart : AITank
 
     public override void AITankStart()
     {
+        //InitializeStateMachine();
+
         Debug.Log("[A_Smart] Tank AI Initialized.");
 
         // Create a temporary target GameObject for strafing
@@ -36,7 +38,21 @@ public class A_Smart : AITank
         }
 
         ChangeState(new AttackState(this, initialTarget));
+        
     }
+
+    /*private void InitializeStateMachine()
+    {
+        Dictionary<Type, A_Smart> states = new Dictionary<Type, A_Smart>();
+
+        states.Add(typeof(AttackState), new AttackState(this));
+        states.Add(typeof(ExploreState),new ExploreState(this));
+      states.Add(typeof(ChaseState), new ChaseState(this));
+        states.Add(typeof(AmbushState), new AmbushState(this));
+        states.Add(typeof(RetreatState), new RetreatState(this));
+        states.Add(typeof(WaitState), new WaitState(this));
+    }*/
+
 
 
     public override void AITankUpdate()
