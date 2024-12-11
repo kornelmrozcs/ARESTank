@@ -113,5 +113,9 @@ public class A_Smart : AITank
         }
     }
 
+    internal void FollowPathToPoint(Vector3 movePosition, float v, HeuristicMode heuristicMode)
+    {
+        throw new NotImplementedException();
+    }
 }
 
