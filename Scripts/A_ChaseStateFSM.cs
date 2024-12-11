@@ -24,14 +24,14 @@ public class A_ChaseStateFSM : A_TankStateFSM
             if (target != null)
             {
                 // Move towards the base and attack if in range
-                if (Vector3.Distance(tank.transform.position, target.transform.position) < 25f)
+                if (Vector3.Distance(tank.transform.position, target.transform.position) < 40)
                 {
                     Debug.Log("[Chase] Changing to attack enemy : " + target.name);
                     return typeof(A_AttackStateFSM);
                 }
                 else
                 {
-                    Debug.Log("[Attack] Moving closer to enemy: " + target.name);
+                    Debug.Log("[ttack] Moving closer to enemy: " + target.name);
                     tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
                 }
             }
