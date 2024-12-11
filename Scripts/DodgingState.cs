@@ -4,9 +4,9 @@ using UnityEngine;
 public class DodgingState : TankState
 {
     private GameObject target;
-    private float dodgeDuration = 2.3f; // Dodge for 2 seconds
+    private float dodgeDuration = 2.5f; // Dodge for 2 seconds
     private float dodgeTimer = 0f;
-    private float dodgeDistance = 3f; // Distance to move while dodging
+    private float dodgeDistance = 4f; // Distance to move while dodging
     private float maxDistanceFromTarget = 35f; // Max distance before we consider losing sight of the target
     private int previousAmmoLevel;  // To track the ammo level change
 

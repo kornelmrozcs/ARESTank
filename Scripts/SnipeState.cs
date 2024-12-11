@@ -27,10 +27,24 @@ public class SnipeState : TankState
             // Aim and shoot with predictive targeting
             PredictAndShootAtTarget();
 
-            // If the shot has been fired and the health difference is small, we transition to DodgingState
-            if (hasFired && tank.GetHealthLevel() > target.GetComponent<DumbTank>().TankCurrentHealth)
+            // If the shot has been fired, check health difference
+            if (hasFired)
             {
-                Debug.Log("[SnipeState] Health is greater, continuing to snipe.");
+                float healthDifference = tank.GetHealthLevel() - target.GetComponent<DumbTank>().TankCurrentHealth;
+
+                if (healthDifference <= 0)
+                {
+                    // If health is equal or lower than DumbTank's, transition to DodgingState
+                    Debug.Log("[SnipeState] Health is lower or the same, transitioning to DodgingState.");
+                    tank.ChangeState(new DodgingState(tank, target)); // Transition to DodgingState
+                    return;
+                }
+                else if (healthDifference >= 10)
+                {
+                    // If health is higher by 10 or more, continue firing without dodging
+                    Debug.Log("[SnipeState] Health is greater by 10 or more, continuing to fire.");
+                    return;
+                }
             }
         }
         else
@@ -53,19 +67,38 @@ public class SnipeState : TankState
 
     private void PredictAndShootAtTarget()
     {
-        // Predict the position of the DumbTank based on its velocity and direction
-        Vector3 predictedPosition = target.transform.position + target.GetComponent<Rigidbody>().velocity * 4f; // Predictive aim (you can adjust the multiplier)
+        // Speed of the bullet (projectile speed). Adjust based on your game's mechanics.
+        float bulletSpeed = 40f;  // Example: Set this value to the speed of your bullet.
 
-        // Face the turret towards the predicted position
-        tank.TurretFaceWorldPoint(new GameObject { transform = { position = predictedPosition } });
+        // Calculate the distance to the target
+        float distanceToTarget = Vector3.Distance(tank.transform.position, target.transform.position);
 
-        // Fire at the predicted target
+        // If the target is too close, fire directly at it instead of predicting
+        if (distanceToTarget < 5f) // You can adjust this threshold for how close is "too close"
+        {
+            // Aim directly at the target
+            tank.TurretFaceWorldPoint(target);
+        }
+        else
+        {
+            // Predict the time it will take for the bullet to reach the target
+            float timeToTarget = distanceToTarget / bulletSpeed;
+
+            // Predict the target's future position based on its velocity
+            Vector3 predictedPosition = target.transform.position + target.GetComponent<Rigidbody>().velocity * timeToTarget;
+
+            // Face the turret towards the predicted position
+            tank.TurretFaceWorldPoint(new GameObject { transform = { position = predictedPosition } });
+        }
+
+        // Fire at the target or predicted position
         if (!tank.IsTankFiring() && !hasFired)
         {
-            tank.FireAtPoint(target); // Call the FireAtPoint method to handle firing
-            hasFired = true; // Mark that the shot has been fired
+            tank.FireAtPoint(target); // Fire at the predicted position or the target directly
+            hasFired = true;  // Mark that the shot has been fired
         }
     }
+
 
     public override void Exit()
     {
