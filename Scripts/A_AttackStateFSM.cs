@@ -5,8 +5,8 @@ public class AttackState : TankState
 {
     private GameObject target;
     private GameObject enemyBase;
-    private float fireDuration = 0.1f; // Fire for 1 second before moving
-    private float fireTimer = 0.1f;
+    private float fireDuration = 0.5f; // Fire for 1 second before moving
+    private float fireTimer = 0.5f;
 
     public AttackState(A_Smart tank, GameObject target = null) : base(tank)
     {
@@ -86,7 +86,7 @@ public class AttackState : TankState
         }
 
         // Retreat if health is critically low
-        if (tank.GetHealthLevel() < 10)
+        if (tank.GetHealthLevel() < 12)
         {
             Debug.Log("[AttackState] Low health detected. Retreating to SearchState.");
             tank.ChangeState(new ExploreState(tank));
