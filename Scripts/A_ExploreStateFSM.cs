@@ -4,7 +4,7 @@ using UnityEngine;
 public class ExploreState : TankState
 {
     private float explorationTimer = 0f;
-    private const float maxExplorationTime = 10f; // Time before generating a new random point
+    private const float maxExplorationTime = 6f; // Time before generating a new random point
 
     public ExploreState(A_Smart tank) : base(tank) { }
 

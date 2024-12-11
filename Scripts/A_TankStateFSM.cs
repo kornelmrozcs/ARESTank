@@ -13,5 +13,6 @@ public abstract class TankState
 
     public abstract void Enter(); // Called when the state is entered
     public abstract void Execute(); // Called every frame
+    //public override void Wait();
     public abstract void Exit(); // Called when the state is exited
 }

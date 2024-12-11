@@ -5,8 +5,8 @@ public class AttackState : TankState
 {
     private GameObject target;
     private GameObject enemyBase;
-    private float fireDuration = 1f; // Fire for 1 second before moving
-    private float fireTimer = 1f;
+    private float fireDuration = 0.1f; // Fire for 1 second before moving
+    private float fireTimer = 0.1f;
 
     public AttackState(A_Smart tank, GameObject target = null) : base(tank)
     {
@@ -29,7 +29,7 @@ public class AttackState : TankState
             Debug.Log("[AttackState] Enemy base detected: " + enemyBase.name);
             float baseDistance = Vector3.Distance(tank.transform.position, enemyBase.transform.position);
 
-            if (baseDistance < 25f)
+            if (baseDistance < 40f)
             {
                 Debug.Log("[AttackState] Firing at enemy base: " + enemyBase.name);
                 tank.TurretFaceWorldPoint(enemyBase);
@@ -58,7 +58,7 @@ public class AttackState : TankState
         // Calculate the distance to the target
         float distance = Vector3.Distance(tank.transform.position, target.transform.position);
 
-        if (distance < 25f)
+        if (distance < 200f)
         {
             // Fire at the target
             Debug.Log("[AttackState] Firing at target: " + target.name);
