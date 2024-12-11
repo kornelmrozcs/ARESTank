@@ -16,7 +16,7 @@ public class A_SmartFSM : AITank
     // Pathfinding heuristic
     public HeuristicMode heuristicMode;
 
-    public GameObject strafeTarget;
+    ///public GameObject strafeTarget;
 
     public override void AITankStart()
     {
@@ -25,8 +25,8 @@ public class A_SmartFSM : AITank
         Debug.Log("[A_Smart] Tank AI Initialized.");
 
         // Create a temporary target GameObject for strafing
-        strafeTarget = new GameObject("StrafeTarget");
-        strafeTarget.transform.SetParent(transform); // Attach to the tank
+        //strafeTarget = new GameObject("StrafeTarget");
+        //strafeTarget.transform.SetParent(transform); // Attach to the tank
 
         // Start in AttackState with no target initially
         GameObject initialTarget = null;
@@ -45,14 +45,14 @@ public class A_SmartFSM : AITank
         
         states.Add(typeof(A_SearchStateFSM),new A_SearchStateFSM(this));
         states.Add(typeof(A_ChaseStateFSM), new A_ChaseStateFSM(this));
-        //states.Add(typeof(A_AttackStateFSM), new A_AttackStateFSM(this));
+        states.Add(typeof(A_AttackStateFSM), new A_AttackStateFSM(this));
         
         /*
         states.Add(typeof(AmbushState), new AmbushState(this));
         states.Add(typeof(RetreatState), new RetreatState(this));
         states.Add(typeof(WaitState), new WaitState(this));*/
 
-        //GetComponent<A_StateMachineFSM>().SetStates(states);
+        GetComponent<A_StateMachineFSM>().SetStates(states);
     }
 
     public override void AIOnCollisionEnter(Collision collision)

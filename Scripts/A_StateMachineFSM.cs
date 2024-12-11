@@ -66,15 +66,14 @@ public class A_StateMachineFSM : MonoBehaviour
 
         {
 
-            var nextState = CurrentState.Execute();
 
 
 
-            if (nextState != null && nextState != CurrentState.GetType())
+            if (CurrentState.Execute() != null && CurrentState.Execute() != CurrentState.GetType())
 
             {
 
-                SwitchToState(nextState);
+                SwitchToState(CurrentState.Execute());
 
             }
 
