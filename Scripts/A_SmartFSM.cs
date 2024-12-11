@@ -52,7 +52,7 @@ public class A_SmartFSM : AITank
         states.Add(typeof(RetreatState), new RetreatState(this));
         states.Add(typeof(WaitState), new WaitState(this));*/
 
-        GetComponent<A_StateMachineFSM>().SetStates(states);
+        //GetComponent<A_StateMachineFSM>().SetStates(states);
     }
 
     public override void AIOnCollisionEnter(Collision collision)

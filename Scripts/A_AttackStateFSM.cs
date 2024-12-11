@@ -6,8 +6,8 @@ public class A_AttackStateFSM : A_TankStateFSM
 {
     private GameObject target;
     private GameObject enemyBase;
-    private float fireDuration = 0.5f; // Fire for 1 second before moving
-    private float fireTimer = 0.5f;
+    private float fireDuration = 1f; // Fire for 1 second before moving
+    private float fireTimer = 1f;
 
     public A_AttackStateFSM(A_SmartFSM tank, GameObject target = null) : base(tank)
     {
@@ -44,7 +44,7 @@ public class A_AttackStateFSM : A_TankStateFSM
                 tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
                 return null; // Prioritize moving toward the base
             }
-            return null;
+            //return null;
         }
 
         // Continue with enemy tank logic
