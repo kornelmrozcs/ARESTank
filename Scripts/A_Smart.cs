@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Linq;
-using static AStar;
 using UnityEngine;
 using System.Collections.Generic;
+using static AStar;
 
 public class A_Smart : AITank
 {
@@ -17,7 +17,13 @@ public class A_Smart : AITank
     // Pathfinding heuristic
     public HeuristicMode heuristicMode;
 
+    private float fireCooldown = 4f; // Time between shots
+    private bool isFiring = false;
+
     public GameObject strafeTarget;
+
+    // Speed adjustments
+    private float reducedSpeed = 0.3f; // Reduced speed for faster stopping
 
     public override void AITankStart()
     {
@@ -27,28 +33,63 @@ public class A_Smart : AITank
         strafeTarget = new GameObject("StrafeTarget");
         strafeTarget.transform.SetParent(transform); // Attach to the tank
 
-        // Start in AttackState with no target initially
-        GameObject initialTarget = null;
-
-        if (enemyTanksFound.Count > 0)
+        // Start in ExploreState if no enemies are found initially
+        GameObject initialTarget = enemyTanksFound.Count > 0 ? enemyTanksFound.First().Key : null;
+        if (initialTarget != null)
         {
-            initialTarget = enemyTanksFound.First().Key; // Attempt to get an initial target
+            ChangeState(new AttackState(this, initialTarget));
         }
-
-        ChangeState(new AttackState(this, initialTarget));
+        else
+        {
+            ChangeState(new ExploreState(this));
+        }
     }
-
 
     public override void AITankUpdate()
     {
-        currentState?.Execute();
+        if (currentState == null)
+        {
+            Debug.LogError("[A_Smart] Current state is null. Switching to ExploreState as a fallback.");
+            ChangeState(new ExploreState(this));
+            return;
+        }
+
+        currentState.Execute();
     }
 
     public void ChangeState(TankState newState)
     {
+        if (newState == null)
+        {
+            Debug.LogError("[A_Smart] Attempted to change to a null state. Ignoring.");
+            return;
+        }
+
+        Debug.Log($"[A_Smart] Transitioning from {currentState?.GetType().Name} to {newState.GetType().Name}.");
         currentState?.Exit();
         currentState = newState;
-        currentState?.Enter();
+        currentState.Enter();
+    }
+
+    // You will also need to handle the transition into the ChaseState when the DumbTank's HP is low
+    public void OnEnemyDetected(GameObject enemy)
+    {
+        if (enemyTanksFound.Count > 0)
+        {
+            GameObject detectedEnemy = enemyTanksFound.First().Key;
+
+            // Check if the detected enemy's health is 25 or less (using the GetTankHealthLevel method)
+            if (detectedEnemy != null && detectedEnemy.GetComponent<DumbTank>().TankCurrentHealth <= 25f)
+            {
+                // Start the chase + sniping behavior if health is low
+                ChangeState(new ChaseState(this, detectedEnemy));
+            }
+            else
+            {
+                // Proceed with standard behavior if health is higher
+                ChangeState(new AttackState(this, detectedEnemy));
+            }
+        }
     }
 
     public override void AIOnCollisionEnter(Collision collision)
@@ -56,32 +97,53 @@ public class A_Smart : AITank
         Debug.Log($"[A_Smart] Collided with {collision.gameObject.name}.");
     }
 
-    // Public wrapper for a_FollowPathToRandomPoint
-    public void FollowPathToRandomPoint(float normalizedSpeed, HeuristicMode heuristic)
-    {
-        a_FollowPathToRandomPoint(normalizedSpeed, heuristic);
-    }
-
+    // FireAtPoint now manages the cooldown, firing, and movement
     public void FireAtPoint(GameObject target)
     {
-        a_FireAtPoint(target);
+        if (!isFiring && target != null)
+        {
+            StartCoroutine(FireAndMove(target));
+        }
+    }
+
+    private IEnumerator FireAndMove(GameObject target)
+    {
+        isFiring = true;
+        a_FireAtPoint(target); // Fire the shot using AITank's method
+        yield return new WaitForSeconds(fireCooldown); // Wait for cooldown period (4 seconds)
+        isFiring = false; // Ready to fire again after cooldown
+    }
+
+    public void FollowPathToRandomPoint(float normalizedSpeed, HeuristicMode heuristic)
+    {
+        Debug.Log("[A_Smart] Following path to random point.");
+        a_FollowPathToRandomPoint(normalizedSpeed, heuristic);
     }
 
     public void FollowPathToPoint(GameObject target, float normalizedSpeed, HeuristicMode heuristic)
     {
-        a_FollowPathToPoint(target, normalizedSpeed, heuristic);
+        if (target != null)
+        {
+            Debug.Log("[A_Smart] Following path to point: " + target.name);
+            a_FollowPathToPoint(target, normalizedSpeed, heuristic);
+        }
+        else
+        {
+            Debug.LogWarning("[A_Smart] Cannot follow path. Target is null.");
+        }
+    }
+
+    public void FollowPathToPoint(Vector3 position, float normalizedSpeed, HeuristicMode heuristic)
+    {
+        Debug.Log("[A_Smart] Following path to position: " + position);
+        GameObject tempTarget = new GameObject("TemporaryTarget");
+        tempTarget.transform.position = position;
+        a_FollowPathToPoint(tempTarget, normalizedSpeed, heuristic);
+        GameObject.Destroy(tempTarget); // Clean up temporary target
     }
 
     public void TurretFaceWorldPoint(GameObject target)
     {
-        if (target != null)
-        {
-            a_FaceTurretToPoint(target); // Calls the protected method from AITank
-        }
-        else
-        {
-            Debug.LogWarning("[A_Smart] Target is null. Cannot rotate turret.");
-        }
     }
 
     public float GetAmmoLevel()
@@ -99,23 +161,35 @@ public class A_Smart : AITank
         return a_GetFuelLevel;
     }
 
-    public void LockVisionOnTarget(GameObject target)
+    public bool IsTankFiring()
     {
-        if (target != null)
-        {
-            // Rotate the tank's turret or vision cone to face the target
-            a_FaceTurretToPoint(target); // Ensure the turret is always aiming at the enemy
-            Debug.Log("[A_Smart] Locking vision on target: " + target.name);
-        }
-        else
-        {
-            Debug.LogWarning("[A_Smart] Cannot lock vision. Target is null.");
-        }
+        return a_IsFiring;  // Accesses a_IsFiring in AITank which is protected
     }
 
-    internal void FollowPathToPoint(Vector3 movePosition, float v, HeuristicMode heuristicMode)
+    public float GetTankHealthLevel()
     {
-        throw new NotImplementedException();
+        return GetHealthLevel();  // Use the protected method from AITank to get health
+    }
+
+    // Utility to detect bullet threats
+    public bool IsBulletThreateningTank(Collider bullet)
+    {
+        Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
+        if (bulletRb != null)
+        {
+            Vector3 bulletVelocity = bulletRb.velocity;
+            Vector3 toTank = transform.position - bullet.transform.position;
+
+            // Only dodge if the bullet is actively heading toward the tank
+            return Vector3.Dot(bulletVelocity.normalized, toTank.normalized) > 0.9f;
+        }
+        return false;
+    }
+
+    // Adjusted FollowPathToPoint with reduced speed for quick stopping
+    public void FollowPathToPointWithReducedSpeed(GameObject target, float normalizedSpeed, HeuristicMode heuristic)
+    {
+        // Reduce the speed temporarily to help the tank stop quickly
+        FollowPathToPoint(target, reducedSpeed, heuristic);
     }
 }
-

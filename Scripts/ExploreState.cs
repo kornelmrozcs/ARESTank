@@ -18,7 +18,36 @@ public class ExploreState : TankState
     {
         Debug.Log("[ExploreState] Scanning and exploring...");
 
-        // Prioritize collecting consumables if any are visible
+        // Check if the enemy tank can see the current tank but the current tank cannot see it
+        if (tank.enemyTanksFound.Count == 0 && tank.enemyTanksFound.Any(x => !x.Key.activeSelf))
+        {
+            Debug.Log("[ExploreState] Enemy tank detected us. Returning to AttackState.");
+            // Switch to attack state if an enemy is detected and we don't see them
+            tank.ChangeState(new AttackState(tank, tank.enemyTanksFound.FirstOrDefault().Key));
+            return;
+        }
+
+        // Prioritize enemies over bases and consumables
+        if (tank.enemyTanksFound.Count > 0)
+        {
+            GameObject target = tank.enemyTanksFound.First().Key; // Get the first visible enemy
+            if (target != null)
+            {
+                // Check DumbTank's health for transition to ChaseState or SnipeState
+                if (target.GetComponent<DumbTank>().TankCurrentHealth <= 30f)
+                {
+                    Debug.Log("[ExploreState] DumbTank's health is low. Transitioning to ChaseState.");
+                    tank.ChangeState(new ChaseState(tank, target));
+                    return;
+                }
+
+                Debug.Log("[ExploreState] Enemy detected. Switching to AttackState: " + target.name);
+                tank.ChangeState(new AttackState(tank, target)); // Engage the enemy
+                return;
+            }
+        }
+
+        // Prioritize consumables over enemy bases
         if (tank.consumablesFound.Count > 0)
         {
             GameObject consumable = tank.consumablesFound.First().Key; // Get the first visible consumable
@@ -26,17 +55,17 @@ public class ExploreState : TankState
             {
                 Debug.Log("[ExploreState] Collecting visible consumable: " + consumable.name);
                 tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
-                return; // Skip exploration and attacking to collect the consumable
+                return;
             }
         }
 
-        // Check if an enemy base is found
+        // If no consumables, check for enemy bases
         if (tank.enemyBasesFound.Count > 0)
         {
             GameObject enemyBase = tank.enemyBasesFound.First().Key; // Get the first visible enemy base
             if (enemyBase != null)
             {
-                Debug.Log("[ExploreState] Enemy base found. Moving to attack base: " + enemyBase.name);
+                Debug.Log("[ExploreState] Enemy base detected. Moving to attack base: " + enemyBase.name);
 
                 // Move towards the base and attack if in range
                 if (Vector3.Distance(tank.transform.position, enemyBase.transform.position) < 25f)
@@ -64,18 +93,6 @@ public class ExploreState : TankState
         }
 
         tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
-
-        // Transition to AttackState if an enemy is found
-        if (tank.enemyTanksFound.Count > 0)
-        {
-            GameObject target = tank.enemyTanksFound.First().Key; // Get the first visible enemy
-            if (target != null)
-            {
-                Debug.Log("[ExploreState] Enemies found. Switching to AttackState targeting: " + target.name);
-                tank.ChangeState(new AttackState(tank, target)); // Pass the target GameObject to AttackState
-                return;
-            }
-        }
     }
 
     public override void Exit()
