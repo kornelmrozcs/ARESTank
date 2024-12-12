@@ -76,6 +76,17 @@ public class A_Smart : AITank
             return;
         }
 
+        // Transition to EmergencyState if critical levels are detected
+        if (GetHealthLevel() < 20f || GetFuelLevel() < 15f || GetAmmoLevel() < 2)
+        {
+            if (!(currentState is EmergencyState)) // Avoid re-entering EmergencyState
+            {
+                Debug.Log("[A_Smart] Critical levels detected. Transitioning to EmergencyState.");
+                ChangeState(new EmergencyState(this));
+                return;
+            }
+        }
+
         currentState.Execute();
     }
 
