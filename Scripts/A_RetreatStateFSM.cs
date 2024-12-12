@@ -9,7 +9,7 @@ using static AStar;
 /// Class <c>SmartTank</c> is an example class used to demonstrate how to use the functions available from the <c>AITank</c> base class. 
 /// Copy this class when creating your smart tank class.
 /// </summary>
-public class A_RetreatTankFSM : AITank
+public class A_RetreatStateFSM : AITank
 {
     public Dictionary<GameObject, float> enemyTanksFound = new Dictionary<GameObject, float>();     /*!< <c>enemyTanksFound</c> stores all tanks that are visible within the tanks sensor. */
     public Dictionary<GameObject, float> consumablesFound = new Dictionary<GameObject, float>();    /*!< <c>consumablesFound</c> stores all consumables that are visible within the tanks sensor. */
@@ -29,6 +29,12 @@ public class A_RetreatTankFSM : AITank
 
     float t;    /*!< <c>t</c> stores timer value */
     public HeuristicMode heuristicMode; /*!< <c>heuristicMode</c> Which heuristic used for find path. */
+    private A_SmartFSM a_SmartFSM;
+
+    public A_RetreatStateFSM(A_SmartFSM a_SmartFSM)
+    {
+        this.a_SmartFSM = a_SmartFSM;
+    }
 
     /// <summary>
     ///WARNING, do not use void <c>Start()</c> function, use this <c>AITankStart()</c> function instead if you want to use Start method from Monobehaviour.

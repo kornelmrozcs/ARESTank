@@ -1,92 +1,86 @@
-/*using System.Linq;
+using System;
+using System.Linq;
 using UnityEngine;
 
-public class AmbushState : TankState
+public class A_AmbushStateFSM : A_TankStateFSM
 {
     private GameObject target;
-    private float waitTimer = 0f; // Timer for controlling firing and moving phases
-    private float actionTimer = 0f; // Timer for controlling firing and moving phases
-    private const float fireDuration = 1f; // Time spent firing in each burst
-    private const float moveDuration = 2f; // Time spent moving between bursts
-    private bool isFiring = true; // Toggle between firing and moving
+    private GameObject enemyBase;
+    private float fireDuration = 1f; // Fire for 1 second before moving
+    private float fireTimer = 1f;
 
-    public AmbushState(A_Smart tank, GameObject target = null) : base(tank)
+    public A_AmbushStateFSM(A_SmartFSM tank, GameObject target = null) : base(tank)
     {
         this.target = target;
     }
 
-    public override void Enter()
+    public override Type Enter()
     {
         Debug.Log("[AmbushState] Entered.");
-        actionTimer = 0f;
-        isFiring = true; // Start with firing
+        fireTimer = 0f; // Reset the fire timer
+        return null;
     }
 
-    public override void Wait()
+    public override Type Execute()
     {
-        waitTimer += Time.deltaTime;
-    }
-    
-    public override void Execute()
-    {
+        // Continue with enemy tank logic
         if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
-            Debug.Log("[AmbushState] No valid target. Switching to ExploreState.");
-            tank.ChangeState(new ExploreState(tank));
-            return;
+            Debug.Log("[SaerchState] No valid target. Switching to SaerchState.");
+
+            return typeof(A_SearchStateFSM);
         }
 
-        // Always aim at the target
+        // Lock the turret onto the target
         tank.TurretFaceWorldPoint(target);
-
-        // Lock the cone of vision on the enemy
-        tank.LockVisionOnTarget(target);
 
         // Calculate the distance to the target
         float distance = Vector3.Distance(tank.transform.position, target.transform.position);
 
-        // Alternate between firing and moving
-        actionTimer += Time.deltaTime;
-
-        if (isFiring && actionTimer < fireDuration)
+        if (distance < 50f)
         {
-            if (distance < 25f)
-            {
-                Debug.Log("[AmbushState] Firing burst at target: " + target.name);
-                tank.FireAtPoint(target); // Shoot while strafing or stationary
-            }
-            else
-            {
-                Debug.Log("[AmbushState] Target out of range. Moving closer: " + target.name);
-                tank.FollowPathToPoint(target, 1f, tank.heuristicMode);
-            }
-        }
-        else if (!isFiring && actionTimer < moveDuration + fireDuration)
-        {
-            Debug.Log("[AmbushState] Moving to reposition.");
+            // Fire at the target
+            Debug.Log("[AmbushState] Firing at target: " + target.name);
+            tank.FireAtPoint(target);
 
-            // Generate a new random position to move around
-            tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
+            // Increment the fire timer
+            fireTimer += Time.deltaTime;
+            
+            System.Random randomMove = new System.Random();
+            
+            if (fireTimer >= fireDuration && randomMove.Next(20) < 10)
+            {
+                Debug.Log("[AmbushState] Fired for 1 second. Switching to MovingPhaseState.");
+
+                return typeof(A_MovingPhaseStateFSM);
+            }
         }
         else
         {
-            // Reset timer and toggle firing/moving
-            actionTimer = 0f;
-            isFiring = !isFiring;
+            // Move closer to the target if out of range
+            Debug.Log("[AmbushState] Target out of range. Waiting to be closer to: " + target.name);
+
+            // Fire while moving closer
+            Debug.Log("[AmbushState] Firing at target while moving: " + target.name);
+            tank.FireAtPoint(target);
+            return null;
         }
 
-        // Retreat if health is critically low
-        if (tank.GetHealthLevel() < 25)
+        System.Random randomRetreat = new System.Random();
+
+        // Rarely retreat if health is critically low
+        if (tank.GetHealthLevel() < 20 && randomRetreat.Next(20) < 10)
         {
             Debug.Log("[AmbushState] Low health detected. Retreating to SearchState.");
-            tank.ChangeState(new SearchState(tank));
-            return;
+
+            return typeof(A_RetreatStateFSM);
         }
+        return null;
     }
 
-    public override void Exit()
+    public override Type Exit()
     {
         Debug.Log("[AmbushState] Exiting.");
+        return null;
     }
 }
-*/

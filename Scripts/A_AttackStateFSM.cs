@@ -89,14 +89,14 @@ public class A_AttackStateFSM : A_TankStateFSM
             return null;
         }
 
-        System.Random random = new System.Random();
+        System.Random randomRetreat = new System.Random();
 
         // Rarely retreat if health is critically low
-        if (tank.GetHealthLevel() < 12 && random.Next(20) < 5)
+        if (tank.GetHealthLevel() < 12 && randomRetreat.Next(20) < 5)
         {
             Debug.Log("[AttackState] Low health detected. Retreating to SearchState.");
             
-            return typeof(A_RetreatTankFSM);
+            return typeof(A_RetreatStateFSM);
         }
         return null;
     }

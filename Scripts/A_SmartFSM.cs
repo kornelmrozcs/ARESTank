@@ -46,11 +46,9 @@ public class A_SmartFSM : AITank
         states.Add(typeof(A_SearchStateFSM),new A_SearchStateFSM(this));
         states.Add(typeof(A_ChaseStateFSM), new A_ChaseStateFSM(this));
         states.Add(typeof(A_AttackStateFSM), new A_AttackStateFSM(this));
-        
-        /*
-        states.Add(typeof(AmbushState), new AmbushState(this));
-        states.Add(typeof(RetreatState), new RetreatState(this));
-        states.Add(typeof(WaitState), new WaitState(this));*/
+        states.Add(typeof(A_AmbushStateFSM), new A_AmbushStateFSM(this));
+        //states.Add(typeof(A_RetreatStateFSM), new A_RetreatStateFSM(this));
+        //states.Add(typeof(A_WaitStateFSM), new A_WaitStateFSM(this));*/
 
         GetComponent<A_StateMachineFSM>().SetStates(states);
     }
