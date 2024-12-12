@@ -29,12 +29,6 @@ public class A_RetreatStateFSM : AITank
 
     float t;    /*!< <c>t</c> stores timer value */
     public HeuristicMode heuristicMode; /*!< <c>heuristicMode</c> Which heuristic used for find path. */
-    private A_SmartFSM a_SmartFSM;
-
-    public A_RetreatStateFSM(A_SmartFSM a_SmartFSM)
-    {
-        this.a_SmartFSM = a_SmartFSM;
-    }
 
     /// <summary>
     ///WARNING, do not use void <c>Start()</c> function, use this <c>AITankStart()</c> function instead if you want to use Start method from Monobehaviour.

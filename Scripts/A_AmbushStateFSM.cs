@@ -87,7 +87,7 @@ public class A_AmbushStateFSM : A_TankStateFSM
         {
             Debug.Log("[AmbushState] Low health detected. Retreating to SearchState.");
 
-            return typeof(A_RetreatStateFSM);
+            return typeof(A_SearchStateFSM);
         }
         return null;
     }
