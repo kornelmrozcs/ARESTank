@@ -9,6 +9,9 @@ public class EmergencyState : TankState
     private float lowFuelThreshold = 20f;
     private float lowAmmoThreshold = 0f;
     private float criticalFuelThreshold = 10f;  // New threshold for critically low fuel
+    private float rotationProgress = 0f;
+    private Quaternion targetRotation;
+    private float turretRotationSpeed = 30f; // Speed of turret rotation
 
     public EmergencyState(A_Smart tank) : base(tank)
     {
@@ -21,50 +24,16 @@ public class EmergencyState : TankState
 
     public override void Execute()
     {
-        // Check if health, fuel, or ammo are critically low
         if (tank.GetHealthLevel() < lowHealthThreshold || tank.GetFuelLevel() < lowFuelThreshold || tank.GetAmmoLevel() < lowAmmoThreshold)
         {
-            // Log which resource is low
-            if (tank.GetHealthLevel() < lowHealthThreshold)
-                Debug.Log("[EmergencyState] Health is low.");
-            if (tank.GetFuelLevel() < lowFuelThreshold)
-                Debug.Log("[EmergencyState] Fuel is low.");
-            if (tank.GetAmmoLevel() < lowAmmoThreshold)
-                Debug.Log("[EmergencyState] Ammo is low.");
-
-            // Handle critical fuel scenario
             if (tank.GetFuelLevel() <= criticalFuelThreshold)
             {
                 Debug.Log("[EmergencyState] Fuel is critically low. Stopping and searching for fuel.");
-
-                // Stop the tank in place
-                tank.FollowPathToPoint(tank.transform.position, 0f, tank.heuristicMode);  // Stops the tank
-
-                // Rotate the turret to look for fuel
-                RotateTurretToFindFuel();
-
-                // If consumables (fuel) are found, move towards the closest one
-                if (tank.consumablesFound.Count > 0)
-                {
-                    GameObject closestFuel = tank.consumablesFound
-                        .Where(c => c.Key != null && c.Key.CompareTag("Fuel") && c.Value > 0f)  // Filter for fuel consumables
-                        .OrderBy(c => Vector3.Distance(tank.transform.position, c.Key.transform.position))  // Order by proximity
-                        .FirstOrDefault().Key;  // Get the closest fuel
-
-                    if (closestFuel != null)
-                    {
-                        Debug.Log("[EmergencyState] Moving to collect fuel: " + closestFuel.name);
-                        tank.FollowPathToPoint(closestFuel, 1f, tank.heuristicMode);
-                        return; // After collecting fuel, return to keep processing
-                    }
-                }
-
-                // If no fuel is found, continue rotating and searching
-                Debug.Log("[EmergencyState] No fuel found. Continuing to search...");
+                tank.FollowPathToPoint(tank.transform.position, 0f, tank.heuristicMode); // Stop the tank
+                RotateTurretToFindFuel(); // Rotate the turret to find fuel
                 return;
             }
 
-            // If health, ammo, or fuel are not critically low, continue searching for other consumables
             if (tank.consumablesFound.Count > 0)
             {
                 GameObject closestConsumable = tank.consumablesFound
@@ -80,13 +49,11 @@ public class EmergencyState : TankState
                 }
             }
 
-            // If no consumables are found, continue searching
             Debug.Log("[EmergencyState] No consumables found. Searching...");
             tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
         }
         else
         {
-            // If all resources are sufficient, exit EmergencyState
             Debug.Log("[EmergencyState] All resources sufficient. Transitioning to another state.");
             tank.ChangeState(new ExploreState(tank)); // Or another appropriate state
         }
@@ -94,23 +61,27 @@ public class EmergencyState : TankState
 
     private void RotateTurretToFindFuel()
     {
-        // Rotate the turret in place to search for fuel
-        float rotationSpeed = 30f;  // Adjust speed of rotation
+        if (rotationProgress < 1f)
+        {
+            GameObject rightPoint = new GameObject("RightPoint");
+            rightPoint.transform.position = tank.transform.position + tank.transform.right;
 
-        // Create temporary GameObjects to represent the points where the turret will face
-        GameObject rightPoint = new GameObject("RightPoint");
-        rightPoint.transform.position = tank.transform.position + tank.transform.right;  // 90 degrees to the right
+            GameObject leftPoint = new GameObject("LeftPoint");
+            leftPoint.transform.position = tank.transform.position - tank.transform.right;
 
-        GameObject leftPoint = new GameObject("LeftPoint");
-        leftPoint.transform.position = tank.transform.position - tank.transform.right;  // 90 degrees to the left
+            targetRotation = Quaternion.LookRotation(rightPoint.transform.position - tank.turret.position);  // Use the turret's position for rotation
+            tank.turret.rotation = Quaternion.Slerp(tank.turret.rotation, targetRotation, turretRotationSpeed * Time.deltaTime);
 
-        // Rotate the turret to face these temporary points
-        tank.TurretFaceWorldPoint(rightPoint);  // Face right
-        tank.TurretFaceWorldPoint(leftPoint);   // Face left
+            rotationProgress += Time.deltaTime * turretRotationSpeed;
+            if (rotationProgress >= 1f)
+            {
+                targetRotation = Quaternion.LookRotation(leftPoint.transform.position - tank.turret.position);
+                rotationProgress = 0f;
+            }
 
-        // Cleanup the temporary GameObjects after usage
-        GameObject.Destroy(rightPoint);
-        GameObject.Destroy(leftPoint);
+            GameObject.Destroy(rightPoint);
+            GameObject.Destroy(leftPoint);
+        }
     }
 
     public override void Exit()

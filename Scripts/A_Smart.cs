@@ -37,6 +37,9 @@ public class A_Smart : AITank
         }
     }
 
+    // Turret reference
+    public Transform turret; // Reference to the turret Transform
+
     // Firing event handler: listens for when DumbTank fires
     private void HandleFiringMessage(string logString, string stackTrace, LogType type)
     {
@@ -64,6 +67,14 @@ public class A_Smart : AITank
         {
             ChangeState(new ExploreState(this));
         }
+
+        if (turret == null)
+        {
+            turret = transform.Find("Model/Body/Turret");
+        }
+
+        // Initialize turret reference
+        turret = transform.Find("Model/Body/Turret"); // Assuming the turret is named "Turret" and is a child of the tank
     }
 
 
@@ -104,22 +115,18 @@ public class A_Smart : AITank
         currentState.Enter();
     }
 
-    // You will now directly handle transitioning to ChaseState if an enemy is detected
     public void OnEnemyDetected(GameObject enemy)
     {
         if (enemyTanksFound.Count > 0)
         {
             GameObject detectedEnemy = enemyTanksFound.First().Key;
 
-            // Check if the detected enemy's health is low (using the GetTankHealthLevel method)
             if (detectedEnemy != null && detectedEnemy.GetComponent<DumbTank>().TankCurrentHealth <= 25f)
             {
-                // Start chasing directly if health is low
                 ChangeState(new ChaseState(this, detectedEnemy));
             }
             else
             {
-                // Start chasing (no longer using AttackState)
                 ChangeState(new ChaseState(this, detectedEnemy));
             }
         }
@@ -130,7 +137,6 @@ public class A_Smart : AITank
         Debug.Log($"[A_Smart] Collided with {collision.gameObject.name}.");
     }
 
-    // FireAtPoint now manages the cooldown, firing, and movement
     public void FireAtPoint(GameObject target)
     {
         if (!isFiring && target != null)
@@ -204,7 +210,6 @@ public class A_Smart : AITank
         return GetHealthLevel();  // Use the protected method from AITank to get health
     }
 
-    // Utility to detect bullet threats
     public bool IsBulletThreateningTank(Collider bullet)
     {
         Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
@@ -213,16 +218,13 @@ public class A_Smart : AITank
             Vector3 bulletVelocity = bulletRb.velocity;
             Vector3 toTank = transform.position - bullet.transform.position;
 
-            // Only dodge if the bullet is actively heading toward the tank
             return Vector3.Dot(bulletVelocity.normalized, toTank.normalized) > 0.9f;
         }
         return false;
     }
 
-    // Adjusted FollowPathToPoint with reduced speed for quick stopping
     public void FollowPathToPointWithReducedSpeed(GameObject target, float normalizedSpeed, HeuristicMode heuristic)
     {
-        // Reduce the speed temporarily to help the tank stop quickly
         FollowPathToPoint(target, reducedSpeed, heuristic);
     }
 }
