@@ -5,11 +5,47 @@ using UnityEngine;
 using static AStar;
 
 /// <summary>
-/// FuelMaster Tank AI - focuses on fuel conservation and resource control
-/// Uses waiting strategy and forces enemies to waste fuel
+/// FuelMaster Tank AI - Advanced Resource Control and Survival Strategy
+/// 
+/// Core Strategy:
+/// 1. Fuel Conservation
+///    - Minimal movement in early game
+///    - Strategic positioning to force enemy movement
+///    - Efficient path planning using Manhattan heuristic
+///    - Fuel-efficient escape routes
+///
+/// 2. Resource Control
+///    - Immediate collection of all visible resources
+///    - Priority: Fuel > Health (when low) > Ammo
+///    - Tracking of resource spawn points
+///    - Strategic positioning near resource spawns
+///
+/// 3. Enemy Management
+///    - Smart escape system with 8-directional checking
+///    - Maintains optimal distance (35 units) to stay out of enemy range
+///    - Obstacle-aware evasion tactics
+///    - Forces enemy to waste fuel by chasing
+///    - Always moves away from enemy in safe directions
+///
+/// 4. State Management
+///    - InitialWait: Conserves fuel while enemy moves
+///    - LowFuel: Minimal movement, survival mode
+///    - EnemyThreat: Advanced evasion tactics
+///    - ResourceCollection: Aggressive resource gathering
+///    - Scanning: Efficient area monitoring
+///
+/// 5. Survival Tactics
+///    - Obstacle avoidance during escape
+///    - Multi-directional safety checking
+///    - Strategic positioning to avoid getting cornered
+///    - Continuous environment assessment
 /// </summary>
 public class FuelMaster_Tank : AITank
 {
+    // FSM States
+    private enum TankState { InitialWait, LowFuel, EnemyThreat, ResourceCollection, Scanning }
+    private TankState currentState;
+
     // Sensor data collections
     private Dictionary<GameObject, float> enemyTanksFound = new Dictionary<GameObject, float>();
     private Dictionary<GameObject, float> consumablesFound = new Dictionary<GameObject, float>();
@@ -18,82 +54,99 @@ public class FuelMaster_Tank : AITank
     // Target references
     private GameObject enemyTank;
     private GameObject currentConsumable;
-    private GameObject enemyBase;
 
     // Strategy parameters
     private readonly float initialWaitTime = 4f;    // Initial waiting time
     private readonly float minFuelToMove = 20f;     // Minimum fuel to allow movement
-    private readonly float scanRotationSpeed = 30f;  // Degrees per second for scanning
-    private readonly float optimalDistance = 35f;    // Optimal distance from enemy
-    private float waitTimer = 0f;
-    private float scanTimer = 0f;
-    private float resourceCheckTimer = 0f;
+    private readonly float scanRotationSpeed = 30f; // Degrees per second for scanning
+    private readonly float optimalDistance = 35f;   // Optimal distance from enemy
+    private readonly float resourceCollectionSpeed = 1f; // Full speed for resource collection
 
-    // Resource tracking
+    // State tracking
+    private float stateTimer = 0f;
+    private float scanTimer = 0f;
+
+    // Resource management
     private List<Vector3> resourceSpawnPoints = new List<Vector3>();
     private Vector3 lastEnemyPosition;
-    private bool isInitialWait = true;
-    private bool isScanning = false;
 
+    // Pathfinding settings
     public HeuristicMode heuristicMode;
 
     /// <summary>
-    /// Initialize the tank
+    /// Initialize the tank with Manhattan heuristic for optimal pathfinding
     /// </summary>
     public override void AITankStart()
     {
-        Debug.Log("[FuelMaster] Tank initialized - Starting waiting phase");
-        heuristicMode = HeuristicMode.Manhattan; // Most fuel efficient
+        Debug.Log("[FuelMaster] Tank initialized with resource-focused strategy");
+        heuristicMode = HeuristicMode.Manhattan;
+        TransitionToState(TankState.InitialWait);
     }
 
     /// <summary>
-    /// Main update loop
+    /// Main update cycle - Updates sensor data and executes current state behavior
     /// </summary>
     public override void AITankUpdate()
     {
-        // Update visible objects
         UpdateVisibleObjects();
+        ExecuteCurrentState();
+    }
 
-        // Initial waiting phase
-        if (isInitialWait)
+    /// <summary>
+    /// State transition handler with logging
+    /// </summary>
+    private void TransitionToState(TankState newState)
+    {
+        currentState = newState;
+        stateTimer = 0f;
+        Debug.Log($"[FuelMaster] State Transition: {newState}");
+    }
+
+    /// <summary>
+    /// Central state execution handler
+    /// </summary>
+    private void ExecuteCurrentState()
+    {
+        stateTimer += Time.deltaTime;
+
+        // Always check for resources first
+        if (consumablesFound.Count > 0 && currentState != TankState.ResourceCollection)
         {
-            HandleInitialWait();
+            TransitionToState(TankState.ResourceCollection);
             return;
         }
 
-        // Main strategy execution
-        if (TankCurrentFuel <= minFuelToMove)
+        switch (currentState)
         {
-            // Conservation mode when low on fuel
-            HandleLowFuel();
-        }
-        else if (IsEnemyThreatening())
-        {
-            // Escape from enemy while making them waste fuel
-            HandleEnemyThreat();
-        }
-        else if (ShouldCollectResource())
-        {
-            // Collect valuable resources
-            HandleResourceCollection();
-        }
-        else
-        {
-            // Default scanning behavior
-            HandleScanning();
+            case TankState.InitialWait:
+                HandleInitialWait();
+                break;
+            case TankState.LowFuel:
+                HandleLowFuel();
+                break;
+            case TankState.EnemyThreat:
+                HandleEnemyThreat();
+                break;
+            case TankState.ResourceCollection:
+                HandleResourceCollection();
+                break;
+            case TankState.Scanning:
+                HandleScanning();
+                break;
         }
 
-        // Track resource spawns
         TrackResourceSpawns();
     }
 
+    /// <summary>
+    /// Updates sensor information about visible objects
+    /// </summary>
     private void UpdateVisibleObjects()
     {
         enemyTanksFound = VisibleEnemyTanks;
         consumablesFound = VisibleConsumables;
         enemyBasesFound = VisibleEnemyBases;
 
-        // Update enemy tracking
         if (enemyTanksFound.Count > 0)
         {
             enemyTank = enemyTanksFound.First().Key;
@@ -101,84 +154,191 @@ public class FuelMaster_Tank : AITank
         }
     }
 
+    /// <summary>
+    /// Initial waiting state - Conserves fuel while enemy moves
+    /// </summary>
     private void HandleInitialWait()
     {
-        waitTimer += Time.deltaTime;
         TankStop();
-
-        // Rotate to scan during wait
         transform.Rotate(0, scanRotationSpeed * Time.deltaTime, 0);
 
-        if (waitTimer >= initialWaitTime)
+        if (stateTimer >= initialWaitTime)
         {
-            isInitialWait = false;
-            Debug.Log("[FuelMaster] Initial wait complete - Starting normal operation");
+            TransitionToState(TankState.Scanning);
         }
     }
 
+    /// <summary>
+    /// Low fuel state - Minimal movement, focuses on survival
+    /// </summary>
     private void HandleLowFuel()
     {
-        Debug.Log("[FuelMaster] Low fuel mode - Minimizing movement");
         TankStop();
 
-        // Only move if fuel pickup is very close
         var fuelPickup = consumablesFound.FirstOrDefault(x => x.Key.CompareTag("Fuel"));
-        if (fuelPickup.Key != null && Vector3.Distance(transform.position, fuelPickup.Key.transform.position) < 10f)
+        if (fuelPickup.Key != null)
         {
-            FollowPathToWorldPoint(fuelPickup.Key, 0.5f, heuristicMode);
+            FollowPathToWorldPoint(fuelPickup.Key, resourceCollectionSpeed, heuristicMode);
+        }
+
+        if (TankCurrentFuel > minFuelToMove)
+        {
+            TransitionToState(TankState.Scanning);
         }
     }
 
+    /// <summary>
+    /// Enemy threat handling - Strategic evasion and repositioning
+    /// </summary>
     private void HandleEnemyThreat()
     {
         if (enemyTank != null)
         {
-            // Calculate escape direction (opposite of enemy)
-            Vector3 escapeDirection = transform.position - enemyTank.transform.position;
-            Vector3 escapePoint = transform.position + escapeDirection.normalized * optimalDistance;
-
-            // Move away while conserving fuel
-            FollowPathToWorldPoint(escapePoint, 0.7f, heuristicMode);
-
-            // Keep turret facing enemy
+            Vector3 safePosition = CalculateSafeEscapePosition();
+            FollowPathToWorldPoint(safePosition, 0.7f, heuristicMode);
             TurretFaceWorldPoint(enemyTank);
-        }
-    }
 
-    private void HandleResourceCollection()
-    {
-        if (consumablesFound.Count > 0)
-        {
-            GameObject bestResource = GetBestResource();
-            if (bestResource != null)
+            if (!IsEnemyThreatening())
             {
-                FollowPathToWorldPoint(bestResource, 0.8f, heuristicMode);
+                TransitionToState(TankState.Scanning);
             }
         }
     }
 
-    private void HandleScanning()
+    /// <summary>
+    /// Resource collection state - Aggressive resource gathering
+    /// </summary>
+    private void HandleResourceCollection()
     {
-        scanTimer += Time.deltaTime;
-        if (scanTimer >= 2f)
+        if (consumablesFound.Count > 0)
         {
-            isScanning = !isScanning;
-            scanTimer = 0f;
+            GameObject nearestResource = GetNearestResource();
+            if (nearestResource != null)
+            {
+                FollowPathToWorldPoint(nearestResource, resourceCollectionSpeed, heuristicMode);
+                return;
+            }
         }
 
-        if (isScanning)
+        TransitionToState(TankState.Scanning);
+    }
+
+    /// <summary>
+    /// Scanning state - Efficient area monitoring
+    /// </summary>
+    private void HandleScanning()
+    {
+        transform.Rotate(0, scanRotationSpeed * Time.deltaTime, 0);
+
+        if (TankCurrentFuel <= minFuelToMove)
         {
-            TankStop();
-            transform.Rotate(0, scanRotationSpeed * Time.deltaTime, 0);
+            TransitionToState(TankState.LowFuel);
         }
-        else if (resourceSpawnPoints.Count > 0)
+        else if (IsEnemyThreatening())
         {
-            // Move to nearest known resource spawn point
-            Vector3 nearestSpawn = GetNearestResourceSpawn();
-            FollowPathToWorldPoint(nearestSpawn, 0.6f, heuristicMode);
+            TransitionToState(TankState.EnemyThreat);
         }
     }
 
+    /// <summary>
+    /// Calculates optimal escape position by checking multiple directions
+    /// </summary>
+    private Vector3 CalculateSafeEscapePosition()
+    {
+        Vector3 escapeDirection = (transform.position - enemyTank.transform.position).normalized;
+        List<Vector3> potentialEscapePoints = new List<Vector3>();
+
+        // Check 8 different directions
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f;
+            Vector3 rotatedDirection = Quaternion.Euler(0, angle, 0) * escapeDirection;
+            Vector3 potentialPoint = transform.position + rotatedDirection * optimalDistance;
+
+            Node escapeNode = NodePositionInGrid(potentialPoint);
+
+            if (escapeNode != null && escapeNode.traversable)
+            {
+                float enemyDistance = Vector3.Distance(potentialPoint, enemyTank.transform.position);
+
+                bool hasDirectPath = !Physics.Raycast(
+                    transform.position,
+                    rotatedDirection,
+                    optimalDistance,
+                    LayerMask.GetMask("Obstacle")
+                );
+
+                if (hasDirectPath)
+                {
+                    potentialEscapePoints.Add(potentialPoint);
+                }
+            }
+        }
+
+        if (potentialEscapePoints.Count == 0)
+        {
+            return transform.position + escapeDirection * (optimalDistance / 2);
+        }
+
+        return potentialEscapePoints
+            .OrderByDescending(point =>
+                Vector3.Distance(point, enemyTank.transform.position) +
+                (IsNearResourceSpawn(point) ? 10f : 0f))
+            .First();
+    }
+
+    /// <summary>
+    /// Checks if position is near known resource spawns
+    /// </summary>
+    private bool IsNearResourceSpawn(Vector3 position)
+    {
+        return resourceSpawnPoints.Any(spawn =>
+            Vector3.Distance(position, spawn) < 15f);
+    }
+
+    /// <summary>
+    /// Gets the node at a specific world position
+    /// </summary>
+    private Node NodePositionInGrid(Vector3 worldPosition)
+    {
+        AStar aStarScript = GameObject.Find("AStarPlane").GetComponent<AStar>();
+        return aStarScript.NodePositionInGrid(worldPosition);
+    }
+
+    /// <summary>
+    /// Enhanced threat detection with multiple factors
+    /// </summary>
+    private bool IsEnemyThreatening()
+    {
+        if (enemyTank == null) return false;
+
+        float distanceToEnemy = Vector3.Distance(transform.position, enemyTank.transform.position);
+
+        bool isTooClose = distanceToEnemy < optimalDistance;
+        bool isNearObstacle = Physics.CheckSphere(transform.position, 5f, LayerMask.GetMask("Obstacle"));
+        bool isCollectingResource = currentState == TankState.ResourceCollection;
+
+        return isTooClose ||
+               (isNearObstacle && distanceToEnemy < optimalDistance * 1.5f) ||
+               (isCollectingResource && distanceToEnemy < optimalDistance * 1.2f);
+    }
+
+    /// <summary>
+    /// Gets nearest available resource
+    /// </summary>
+    private GameObject GetNearestResource()
+    {
+        if (consumablesFound.Count == 0) return null;
+
+        return consumablesFound
+            .OrderBy(x => Vector3.Distance(transform.position, x.Key.transform.position))
+            .First()
+            .Key;
+    }
+
+    /// <summary>
+    /// Tracks resource spawn points for future reference
+    /// </summary>
     private void TrackResourceSpawns()
     {
         foreach (var resource in consumablesFound)
@@ -187,7 +347,7 @@ public class FuelMaster_Tank : AITank
             if (!resourceSpawnPoints.Contains(spawnPoint))
             {
                 resourceSpawnPoints.Add(spawnPoint);
-                if (resourceSpawnPoints.Count > 5) // Keep only recent spawn points
+                if (resourceSpawnPoints.Count > 5)
                 {
                     resourceSpawnPoints.RemoveAt(0);
                 }
@@ -195,52 +355,14 @@ public class FuelMaster_Tank : AITank
         }
     }
 
-    private bool IsEnemyThreatening()
-    {
-        return enemyTank != null &&
-               Vector3.Distance(transform.position, enemyTank.transform.position) < optimalDistance;
-    }
-
-    private bool ShouldCollectResource()
-    {
-        return consumablesFound.Any(x =>
-            x.Key.CompareTag("Fuel") ||
-            (x.Key.CompareTag("Health") && TankCurrentHealth < 30f));
-    }
-
-    private GameObject GetBestResource()
-    {
-        // Prioritize fuel
-        var fuelPickup = consumablesFound.FirstOrDefault(x => x.Key.CompareTag("Fuel"));
-        if (fuelPickup.Key != null) return fuelPickup.Key;
-
-        // Then health if low
-        if (TankCurrentHealth < 30f)
-        {
-            var healthPickup = consumablesFound.FirstOrDefault(x => x.Key.CompareTag("Health"));
-            if (healthPickup.Key != null) return healthPickup.Key;
-        }
-
-        return null;
-    }
-
-    private Vector3 GetNearestResourceSpawn()
-    {
-        return resourceSpawnPoints
-            .OrderBy(point => Vector3.Distance(transform.position, point))
-            .First();
-    }
-
     public override void AIOnCollisionEnter(Collision collision)
     {
         if (collision.gameObject.CompareTag("Obstacle"))
         {
-            // On collision, generate new point and rotate
             GenerateNewRandomWorldPoint();
             transform.Rotate(0, 90, 0);
         }
     }
-
     #region Helper Methods from DumbTank
     public void GeneratePathToWorldPoint(GameObject pointInWorld)
     {
