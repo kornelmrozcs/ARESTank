@@ -1,102 +1,280 @@
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// ExploreState handles efficient map exploration and resource discovery.
+/// Key Features:
+/// - Intelligent exploration patterns
+/// - Resource spawn point tracking
+/// - Threat awareness and response
+/// - Fuel-efficient movement
+/// </summary>
 public class ExploreState : TankState
 {
+    //=============================
+    // EXPLORATION PROPERTIES
+    //=============================
     private float explorationTimer = 0f;
-    private const float maxExplorationTime = 10f; // Time before generating a new random point
+    private const float MAX_EXPLORATION_TIME = 8f;
+    private const float SCAN_INTERVAL = 3f;
+    private float scanTimer = 0f;
+    private Vector3 lastExplorationPoint;
+    private bool hasFoundConsumable = false;
+    private int explorationPattern = 0;
+    private const int PATTERN_COUNT = 4;
 
-    public ExploreState(A_Smart tank) : base(tank) { }
+    //=============================
+    // EXPLORATION THRESHOLDS
+    //=============================
+    private const float EXPLORE_RADIUS = 40f;
+    private const float MIN_DISTANCE_BETWEEN_POINTS = 15f;
+    private const float RESOURCE_COLLECTION_RANGE = 15f;
 
+    //=============================
+    // CONSTRUCTOR
+    //=============================
+    public ExploreState(A_Smart tank) : base(tank)
+    {
+        lastExplorationPoint = tank.transform.position;
+    }
+
+    //=============================
+    // STATE METHODS
+    //=============================
     public override void Enter()
     {
-        Debug.Log("[ExploreState] Entered.");
-        explorationTimer = 0f;
+        Debug.Log("[ExploreState] Entered. Beginning efficient exploration pattern.");
+        InitializeExploration();
     }
 
     public override void Execute()
     {
-        Debug.Log("[ExploreState] Scanning and exploring...");
+        // Regular scanning during exploration
+        UpdateTimers();
 
-        // Check if the enemy tank can see the current tank but the current tank cannot see it
-        if (tank.enemyTanksFound.Count == 0 && tank.enemyTanksFound.Any(x => !x.Key.activeSelf))
+        if (scanTimer >= SCAN_INTERVAL)
         {
-            Debug.Log("[ExploreState] Enemy tank detected us. Returning to AttackState.");
-            // Switch to attack state if an enemy is detected and we don't see them
-            tank.ChangeState(new ChaseState(tank, tank.enemyTanksFound.FirstOrDefault().Key));
+            if (tank.PerformScan())
+            {
+                return;
+            }
+            scanTimer = 0f;
+        }
+
+        // Check for threats and opportunities
+        if (HandleThreatsAndOpportunities())
+        {
             return;
         }
 
-        // Prioritize enemies over bases and consumables
+        // Main exploration logic
+        HandleExploration();
+    }
+
+    //=============================
+    // EXPLORATION METHODS
+    //=============================
+    private void InitializeExploration()
+    {
+        explorationTimer = 0f;
+        scanTimer = 0f;
+        explorationPattern = Random.Range(0, PATTERN_COUNT);
+    }
+
+    private void HandleExploration()
+    {
+        // Generate new exploration point if needed
+        if (explorationTimer >= MAX_EXPLORATION_TIME || hasFoundConsumable)
+        {
+            // Prefer exploring near known resource positions
+            if (tank.lastConsumablePositions.Count > 0 && Random.value > 0.3f)
+            {
+                ExploreKnownAreas();
+            }
+            else
+            {
+                GenerateNewExplorationPoint();
+            }
+
+            explorationTimer = 0f;
+            hasFoundConsumable = false;
+        }
+
+        // Move with fuel efficiency in mind
+        float speed = CalculateOptimalSpeed();
+        tank.FollowPathToRandomPoint(speed, tank.heuristicMode);
+    }
+
+    private void ExploreKnownAreas()
+    {
+        if (tank.lastConsumablePositions.Count == 0) return;
+
+        // Choose a random known position with some variation
+        int randomIndex = Random.Range(0, tank.lastConsumablePositions.Count);
+        Vector3 knownPosition = tank.lastConsumablePositions[randomIndex];
+
+        // Add some randomness to the position
+        Vector3 offset = Random.insideUnitSphere * 10f;
+        offset.y = 0;
+
+        lastExplorationPoint = knownPosition + offset;
+        tank.FollowPathToPoint(lastExplorationPoint, CalculateOptimalSpeed(), tank.heuristicMode);
+    }
+
+    //=============================
+    // THREAT HANDLING
+    //=============================
+    private bool HandleThreatsAndOpportunities()
+    {
+        // Check critical resources first
+        if (CheckCriticalResources())
+        {
+            return true;
+        }
+
+        // Check for enemies
+        if (CheckForEnemies())
+        {
+            return true;
+        }
+
+        // Check for valuable resources
+        if (CheckForResources())
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool CheckCriticalResources()
+    {
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL)
+        {
+            var nearestFuel = tank.GetNearestConsumable("Fuel");
+            if (nearestFuel != null)
+            {
+                Debug.Log("[ExploreState] Found critical fuel resource, collecting.");
+                tank.ChangeState(new ResourceCollectionState(tank));
+                return true;
+            }
+            else
+            {
+                Debug.Log("[ExploreState] Critical fuel, switching to wait state.");
+                tank.ChangeState(new WaitState(tank));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool CheckForEnemies()
+    {
         if (tank.enemyTanksFound.Count > 0)
         {
-            GameObject target = tank.enemyTanksFound.First().Key; // Get the first visible enemy
-            if (target != null)
+            var enemy = tank.enemyTanksFound.First();
+            if (enemy.Key != null)
             {
-                // Check DumbTank's health for transition to ChaseState or SnipeState
-                if (target.GetComponent<DumbTank>().TankCurrentHealth <= 30f)
-                {
-                    Debug.Log("[ExploreState] DumbTank's health is low. Transitioning to ChaseState.");
-                    tank.ChangeState(new ChaseState(tank, target));
-                    return;
-                }
+                float enemyHealth = enemy.Key.GetComponent<DumbTank>().TankCurrentHealth;
+                float distance = enemy.Value;
 
-                Debug.Log("[ExploreState] Enemy detected. Switching to SnipeState: " + target.name);
-                tank.ChangeState(new DodgingState(tank, target)); // Engage the enemy
-                return;
+                if (enemyHealth <= A_Smart.StateThresholds.WEAK_ENEMY_HEALTH)
+                {
+                    Debug.Log("[ExploreState] Found weak enemy, switching to chase.");
+                    tank.ChangeState(new ChaseState(tank, enemy.Key));
+                    return true;
+                }
+                else if (tank.GetFuelLevel() > A_Smart.StateThresholds.LOW_FUEL)
+                {
+                    Debug.Log("[ExploreState] Enemy detected, engaging with dodge pattern.");
+                    tank.ChangeState(new DodgingState(tank, enemy.Key));
+                    return true;
+                }
             }
         }
+        return false;
+    }
 
-        // Prioritize consumables over enemy bases
-        if (tank.consumablesFound.Count > 0)
-        {
-            GameObject consumable = tank.consumablesFound.First().Key; // Get the first visible consumable
-            if (consumable != null)
-            {
-                Debug.Log("[ExploreState] Collecting visible consumable: " + consumable.name);
-                tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
-                return;
-            }
-        }
-
-        // If no consumables, check for enemy bases
-        if (tank.enemyBasesFound.Count > 0)
-        {
-            GameObject enemyBase = tank.enemyBasesFound.First().Key; // Get the first visible enemy base
-            if (enemyBase != null)
-            {
-                Debug.Log("[ExploreState] Enemy base detected. Moving to attack base: " + enemyBase.name);
-
-                // Move towards the base and attack if in range
-                if (Vector3.Distance(tank.transform.position, enemyBase.transform.position) < 25f)
-                {
-                    Debug.Log("[ExploreState] Attacking enemy base: " + enemyBase.name);
-                    tank.FireAtPoint(enemyBase);
-                }
-                else
-                {
-                    Debug.Log("[ExploreState] Moving closer to enemy base: " + enemyBase.name);
-                    tank.FollowPathToPoint(enemyBase.transform.position, 1f, tank.heuristicMode);
-                }
-
-                return; // Focus on the base and stop other behaviors
-            }
-        }
-
-        // Continue exploration behavior
+    //=============================
+    // UTILITY METHODS
+    //=============================
+    private void UpdateTimers()
+    {
         explorationTimer += Time.deltaTime;
-        if (explorationTimer >= maxExplorationTime)
+        scanTimer += Time.deltaTime;
+    }
+
+    private float CalculateOptimalSpeed()
+    {
+        // Adjust speed based on fuel level and situation
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.LOW_FUEL)
+            return 0.5f;
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL)
+            return 0.3f;
+        return 0.7f;
+    }
+
+    private void GenerateNewExplorationPoint()
+    {
+        // Generate point based on current pattern
+        switch (explorationPattern)
         {
-            Debug.Log("[ExploreState] Generating new random exploration point...");
-            tank.FollowPathToRandomPoint(1f, tank.heuristicMode); // Corrected method call
-            explorationTimer = 0f; // Reset exploration timer
+            case 0: // Spiral pattern
+                GenerateSpiralPoint();
+                break;
+            case 1: // Grid pattern
+                GenerateGridPoint();
+                break;
+            case 2: // Concentric circles
+                GenerateConcentricCirclePoint();
+                break;
+            default: // Random with constraints
+                tank.FollowPathToRandomPoint(CalculateOptimalSpeed(), tank.heuristicMode);
+                break;
         }
 
-        tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
+        explorationPattern = (explorationPattern + 1) % PATTERN_COUNT;
+    }
+
+    private void GenerateSpiralPoint()
+    {
+        float angle = explorationTimer * 0.5f;
+        float radius = 10f + explorationTimer * 2f;
+        Vector3 offset = new Vector3(
+            Mathf.Cos(angle) * radius,
+            0,
+            Mathf.Sin(angle) * radius
+        );
+        Vector3 newPoint = tank.transform.position + offset;
+        tank.FollowPathToPoint(newPoint, CalculateOptimalSpeed(), tank.heuristicMode);
+    }
+
+    private void GenerateGridPoint()
+    {
+        // Simple grid pattern
+        int gridSize = 20;
+        Vector3 newPoint = new Vector3(
+            Mathf.Round(tank.transform.position.x / gridSize) * gridSize,
+            0,
+            Mathf.Round(tank.transform.position.z / gridSize) * gridSize
+        );
+        tank.FollowPathToPoint(newPoint, CalculateOptimalSpeed(), tank.heuristicMode);
+    }
+
+    private void GenerateConcentricCirclePoint()
+    {
+        float radius = 15f + (explorationTimer % 3) * 10f;
+        float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+        Vector3 newPoint = tank.transform.position + new Vector3(
+            Mathf.Cos(angle) * radius,
+            0,
+            Mathf.Sin(angle) * radius
+        );
+        tank.FollowPathToPoint(newPoint, CalculateOptimalSpeed(), tank.heuristicMode);
     }
 
     public override void Exit()
     {
-        Debug.Log("[ExploreState] Exiting.");
+        Debug.Log("[ExploreState] Exiting explore state.");
     }
 }

@@ -1,96 +1,307 @@
+﻿using UnityEngine;
 using System.Linq;
-using UnityEngine;
 
+/// <summary>
+/// DodgingState handles evasive maneuvers and tactical positioning.
+/// Key Features:
+/// - Multiple dodge patterns
+/// - Fuel-efficient movement
+/// - Predictive enemy shot avoidance
+/// - Tactical positioning
+/// </summary>
 public class DodgingState : TankState
 {
+    //=============================
+    // DODGE STATE PROPERTIES
+    //=============================
     private GameObject target;
-    private float dodgeDuration = 2.5f; // Dodge for 2 seconds
     private float dodgeTimer = 0f;
-    private float dodgeDistance = 4f; // Distance to move while dodging
-    private float maxDistanceFromTarget = 35f; // Max distance before we consider losing sight of the target
-    private int previousAmmoLevel;  // To track the ammo level change
+    private const float DODGE_DURATION = 1.5f;
+    private const float DODGE_DISTANCE = 6f;
+    private Vector3 currentDodgeDirection;
+    private bool isDodging = false;
+    private int currentPattern = 0;
+    private const int PATTERN_COUNT = 4;
 
+    //=============================
+    // MOVEMENT PARAMETERS
+    //=============================
+    private const float MAX_DISTANCE = 35f;
+    private const float MIN_DISTANCE = 25f;
+    private const float SCAN_INTERVAL = 2f;
+    private float scanTimer = 0f;
+    private Vector3 lastEnemyPosition;
+    private Vector3 lastEnemyVelocity;
+
+    //=============================
+    // DODGE PATTERNS
+    //=============================
+    private enum DodgePattern
+    {
+        Sidestep,
+        ZigZag,
+        Retreat,
+        Circle
+    }
+    private DodgePattern currentDodgePattern;
+
+    //=============================
+    // CONSTRUCTOR
+    //=============================
     public DodgingState(A_Smart tank, GameObject target) : base(tank)
     {
         this.target = target;
+        this.lastEnemyPosition = target.transform.position;
+        this.lastEnemyVelocity = target.GetComponent<Rigidbody>().velocity;
     }
 
+    //=============================
+    // STATE METHODS
+    //=============================
     public override void Enter()
     {
-        Debug.Log("[DodgingState] Entered.");
-        dodgeTimer = dodgeDuration; // Set timer for dodging
-        previousAmmoLevel = (int)tank.TankCurrentAmmo; // Initialize ammo level tracking with the current ammo
+        Debug.Log("[DodgingState] Entered. Initiating evasive maneuvers.");
+        InitiateDodge();
     }
 
     public override void Execute()
     {
-        // Check if the enemy tank has fired (ammo level decreased)
-        if ((int)tank.TankCurrentAmmo < previousAmmoLevel)
+        // Regular scanning if not actively dodging
+        if (!isDodging)
         {
-            Debug.Log("[DodgingState] Ammo has decreased, transitioning to SnipeState.");
-            tank.ChangeState(new SnipeState(tank, target));  // Transition to SnipeState immediately
-            return;
-        }
-
-        // Get distance to the target
-        float distance = Vector3.Distance(tank.transform.position, target.transform.position);
-
-        // Check if we are far enough to stop dodging and continue chasing
-        if (distance > maxDistanceFromTarget)
-        {
-            Debug.Log("[DodgingState] Lost sight of target, transitioning to ChaseState.");
-            tank.ChangeState(new ChaseState(tank, target));  // Transition to ChaseState
-            return;
-        }
-
-        // Perform dodging movement if the dodge timer is active
-        if (dodgeTimer > 0f)
-        {
-            PerformDodgingMovement();
-            dodgeTimer -= Time.deltaTime; // Countdown the dodge timer
-            Debug.Log($"[DodgingState] Dodge Timer: {dodgeTimer}"); // For debugging
-        }
-        else
-        {
-            // After dodging, transition to SnipeState to continue fighting
-            Debug.Log("[DodgingState] Dodge complete, transitioning to SnipeState.");
-            tank.ChangeState(new SnipeState(tank, target)); // Transition to SnipeState
-        }
-
-        // Check for consumables while dodging, prioritize them
-        if (tank.consumablesFound.Count > 0)
-        {
-            GameObject consumable = tank.consumablesFound.First().Key;
-            if (consumable != null)
+            scanTimer += Time.deltaTime;
+            if (scanTimer >= SCAN_INTERVAL)
             {
-                Debug.Log("[DodgingState] Collecting consumable: " + consumable.name);
-                tank.FollowPathToPoint(consumable.transform.position, 1f, tank.heuristicMode);
-                return; // After collecting consumable, transition back to ChaseState
+                if (tank.PerformScan())
+                {
+                    return;
+                }
+                scanTimer = 0f;
             }
         }
 
-        // If health/fuel/ammo are low, go back to ExploreState
-        if (tank.GetHealthLevel() < 20f || tank.GetFuelLevel() < 15f || tank.GetAmmoLevel() < 2)
+        // Check if we should continue dodging
+        if (!ShouldContinueDodging())
         {
-            Debug.Log("[DodgingState] Health/Fuel/Ammo low. Transitioning to ExploreState.");
-            tank.ChangeState(new ExploreState(tank));
+            HandleDodgeExit();
+            return;
+        }
+
+        // Execute dodge pattern
+        if (isDodging)
+        {
+            ExecuteDodgePattern();
+        }
+        else
+        {
+            EvaluateNextAction();
+        }
+
+        // Always track enemy
+        UpdateEnemyTracking();
+    }
+
+    //=============================
+    // DODGE METHODS
+    //=============================
+    private void InitiateDodge()
+    {
+        isDodging = true;
+        dodgeTimer = DODGE_DURATION;
+        currentDodgePattern = (DodgePattern)(currentPattern % PATTERN_COUNT);
+        currentPattern++;
+
+        // Calculate best dodge direction based on current pattern
+        currentDodgeDirection = CalculateBestDodgeDirection();
+        Debug.Log($"[DodgingState] New dodge initiated with pattern: {currentDodgePattern}");
+    }
+
+    private void ExecuteDodgePattern()
+    {
+        dodgeTimer -= Time.deltaTime;
+        if (dodgeTimer <= 0)
+        {
+            isDodging = false;
+            return;
+        }
+
+        Vector3 targetPosition = CalculateDodgePosition();
+        float speed = CalculateOptimalSpeed();
+
+        // Execute the selected dodge pattern
+        switch (currentDodgePattern)
+        {
+            case DodgePattern.Sidestep:
+                ExecuteSidestepDodge(targetPosition, speed);
+                break;
+            case DodgePattern.ZigZag:
+                ExecuteZigZagDodge(targetPosition, speed);
+                break;
+            case DodgePattern.Retreat:
+                ExecuteRetreatDodge(targetPosition, speed);
+                break;
+            case DodgePattern.Circle:
+                ExecuteCircleDodge(targetPosition, speed);
+                break;
+        }
+
+        // Always face turret towards enemy while dodging
+        tank.TurretFaceWorldPoint(target);
+
+        // Check for resources during dodge
+        CheckForCriticalResources();
+    }
+
+    //=============================
+    // DODGE PATTERNS
+    //=============================
+    private void ExecuteSidestepDodge(Vector3 targetPosition, float speed)
+    {
+        Vector3 sideStep = Vector3.Cross(tank.transform.forward, Vector3.up).normalized * DODGE_DISTANCE;
+        tank.FollowPathToPoint(tank.transform.position + sideStep * (dodgeTimer < DODGE_DURATION / 2 ? -1 : 1),
+            speed, tank.heuristicMode);
+    }
+
+    private void ExecuteZigZagDodge(Vector3 targetPosition, float speed)
+    {
+        float zigZagAmplitude = 5f;
+        float zigZagFrequency = 2f;
+        Vector3 zigZagOffset = Vector3.right * Mathf.Sin(Time.time * zigZagFrequency) * zigZagAmplitude;
+        tank.FollowPathToPoint(targetPosition + zigZagOffset, speed, tank.heuristicMode);
+    }
+
+    private void ExecuteRetreatDodge(Vector3 targetPosition, float speed)
+    {
+        Vector3 retreatDirection = (tank.transform.position - target.transform.position).normalized;
+        tank.FollowPathToPoint(tank.transform.position + retreatDirection * DODGE_DISTANCE,
+            speed, tank.heuristicMode);
+    }
+
+    private void ExecuteCircleDodge(Vector3 targetPosition, float speed)
+    {
+        float circleRadius = 8f;
+        float angleSpeed = 2f;
+        Vector3 centerPoint = target.transform.position;
+        Vector3 circlePoint = centerPoint + new Vector3(
+            Mathf.Cos(Time.time * angleSpeed) * circleRadius,
+            0,
+            Mathf.Sin(Time.time * angleSpeed) * circleRadius
+        );
+        tank.FollowPathToPoint(circlePoint, speed, tank.heuristicMode);
+    }
+
+    //=============================
+    // CALCULATION METHODS
+    //=============================
+    private Vector3 CalculateBestDodgeDirection()
+    {
+        Vector3 directionToTarget = (tank.transform.position - target.transform.position).normalized;
+        Vector3 rightDirection = Vector3.Cross(directionToTarget, Vector3.up);
+
+        // Choose direction based on pattern and situation
+        switch (currentDodgePattern)
+        {
+            case DodgePattern.Sidestep:
+                return rightDirection;
+            case DodgePattern.ZigZag:
+                return (directionToTarget + rightDirection * 0.5f).normalized;
+            case DodgePattern.Retreat:
+                return directionToTarget;
+            case DodgePattern.Circle:
+                return Vector3.Cross(directionToTarget, Vector3.up);
+            default:
+                return rightDirection;
         }
     }
 
-    private void PerformDodgingMovement()
+    private float CalculateOptimalSpeed()
     {
-        // Dodge up or down by a random direction
-        Vector3 dodgeDirection = (Random.value > 0.5f) ? tank.transform.up : -tank.transform.up;
+        // Adjust speed based on fuel level and distance to target
+        float distanceToTarget = Vector3.Distance(tank.transform.position, target.transform.position);
+        float baseSpeed = tank.GetFuelLevel() < A_Smart.StateThresholds.LOW_FUEL ? 0.5f : 0.7f;
 
-        // Move away from the target for dodgeDistance, but avoid crossing enemy fire line
-        tank.FollowPathToPoint(tank.transform.position + dodgeDirection * dodgeDistance, 1f, tank.heuristicMode);
+        // Reduce speed when getting too close to target
+        if (distanceToTarget < MIN_DISTANCE)
+            return baseSpeed * 0.8f;
 
-        // Ensure the tank is always facing the target after dodging
-        tank.TurretFaceWorldPoint(target);
+        return baseSpeed;
+    }
+
+    //=============================
+    // UTILITY METHODS
+    //=============================
+    private void UpdateEnemyTracking()
+    {
+        if (target != null)
+        {
+            lastEnemyPosition = target.transform.position;
+            lastEnemyVelocity = target.GetComponent<Rigidbody>().velocity;
+        }
+    }
+
+    private bool ShouldContinueDodging()
+    {
+        if (target == null || !target.activeSelf)
+            return false;
+
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL)
+            return false;
+
+        float distance = Vector3.Distance(tank.transform.position, target.transform.position);
+        return distance <= MAX_DISTANCE;
+    }
+
+    private void CheckForCriticalResources()
+    {
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL ||
+            tank.GetHealthLevel() < A_Smart.StateThresholds.CRITICAL_HEALTH)
+        {
+            var criticalResource = GetMostNeededResource();
+            if (criticalResource != null &&
+                Vector3.Distance(tank.transform.position, criticalResource.transform.position) < 10f)
+            {
+                isDodging = false;
+                tank.ChangeState(new ResourceCollectionState(tank));
+            }
+        }
+    }
+
+    private GameObject GetMostNeededResource()
+    {
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL)
+            return tank.GetNearestConsumable("Fuel");
+        if (tank.GetHealthLevel() < A_Smart.StateThresholds.CRITICAL_HEALTH)
+            return tank.GetNearestConsumable("Health");
+        return null;
+    }
+
+    private void EvaluateNextAction()
+    {
+        if (target != null && target.GetComponent<DumbTank>().TankCurrentHealth <= A_Smart.StateThresholds.WEAK_ENEMY_HEALTH)
+        {
+            tank.ChangeState(new SnipeState(tank, target));
+            return;
+        }
+
+        InitiateDodge();
+    }
+
+    private void HandleDodgeExit()
+    {
+        if (tank.GetFuelLevel() < A_Smart.StateThresholds.CRITICAL_FUEL)
+        {
+            Debug.Log("[DodgingState] Critical fuel level, switching to wait state.");
+            tank.ChangeState(new WaitState(tank));
+        }
+        else
+        {
+            Debug.Log("[DodgingState] Switching to resource collection.");
+            tank.ChangeState(new ResourceCollectionState(tank));
+        }
     }
 
     public override void Exit()
     {
-        Debug.Log("[DodgingState] Exiting.");
+        Debug.Log("[DodgingState] Exiting dodge state.");
     }
 }
