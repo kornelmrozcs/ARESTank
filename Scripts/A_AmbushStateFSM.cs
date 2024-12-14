@@ -5,9 +5,10 @@ using UnityEngine;
 public class A_AmbushStateFSM : A_TankStateFSM
 {
     private GameObject target;
-    private GameObject enemyBase;
     private float fireDuration = 1f; // Fire for 1 second before moving
     private float fireTimer = 1f;
+
+    public float ambushTimeout = 0f;
 
     public A_AmbushStateFSM(A_SmartFSM tank, GameObject target = null) : base(tank)
     {
@@ -26,7 +27,7 @@ public class A_AmbushStateFSM : A_TankStateFSM
         // Continue with enemy tank logic
         if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
-            Debug.Log("[SaerchState] No valid target. Switching to SaerchState.");
+            Debug.Log("[SearchState] No valid target. Switching to SaerchState.");
 
             return typeof(A_SearchStateFSM);
         }
@@ -36,6 +37,9 @@ public class A_AmbushStateFSM : A_TankStateFSM
 
         // Calculate the distance to the target
         float distance = Vector3.Distance(tank.transform.position, target.transform.position);
+
+        // Increment the ambush timer (when time out start moving)
+        ambushTimeout += Time.deltaTime;
 
         if (distance < 50f)
         {
@@ -47,8 +51,8 @@ public class A_AmbushStateFSM : A_TankStateFSM
             fireTimer += Time.deltaTime;
             
             System.Random randomMove = new System.Random();
-            
-            if (fireTimer >= fireDuration && randomMove.Next(20) < 10)
+             
+            if ((fireTimer >= fireDuration && randomMove.Next(20) < 5) || (ambushTimeout > 30f))
             {
                 Debug.Log("[AmbushState] Fired for 1 second. Switching to MovingPhaseState.");
 
@@ -57,12 +61,22 @@ public class A_AmbushStateFSM : A_TankStateFSM
         }
         else
         {
-            // Move closer to the target if out of range
-            Debug.Log("[AmbushState] Target out of range. Waiting to be closer to: " + target.name);
+            if (ambushTimeout > 50f)
+            {
+                Debug.Log("[AmbushState] Timeout. Switching to SearchPhaseState.");
 
-            // Fire while moving closer
-            Debug.Log("[AmbushState] Firing at target while moving: " + target.name);
-            tank.FireAtPoint(target);
+                return typeof(A_SearchStateFSM);
+            }
+            else 
+            {
+                // Waiting to be closer to the target if out of range
+                Debug.Log("[AmbushState] Target out of range. Waiting to be closer to: " + target.name);
+
+                // Fire while moving closer
+                Debug.Log("[AmbushState] Firing at target while moving: " + target.name);
+                tank.FireAtPoint(target);
+            }
+
             return null;
         }
 

@@ -50,7 +50,7 @@ public class A_AttackStateFSM : A_TankStateFSM
         // Continue with enemy tank logic
         if (target == null || !tank.enemyTanksFound.ContainsKey(target))
         {
-            Debug.Log("[SaerchState] No valid target. Switching to SaerchState.");
+            Debug.Log("[SaerchState] No valid target. Switching to SearchState.");
            
             return typeof(A_SearchStateFSM);
         }
