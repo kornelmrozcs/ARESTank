@@ -19,67 +19,80 @@ public class A_SearchStateFSM : A_TankStateFSM
 
     public override Type Execute()
     {
-        Debug.Log("[SearchState] Scanning and exploring...");
+        System.Random randomAmbush = new System.Random();
 
-        // Prioritize collecting consumables if any are visible
-        if (tank.consumablesFound.Count > 0)
+        // Rare ambush
+        if (randomAmbush.Next(50) > 45)
         {
-            GameObject consumable = tank.consumablesFound.First().Key; // Get the first visible consumable
-            if (consumable != null)
-            {
-                Debug.Log("[SearchState] Collecting visible consumable: " + consumable.name);
-                tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
-                return null; // Skip exploration and attacking to collect the consumable
-            }
+            Debug.Log("[AmbushState] Switching to AmbushState.");
+
+            return typeof(A_AmbushStateFSM);
         }
+        else
+        { 
+            Debug.Log("[SearchState] Scanning and exploring...");
 
-        // Check if an enemy base is found
-        if (tank.enemyBasesFound.Count > 0)
-        {
-            GameObject enemyBase = tank.enemyBasesFound.First().Key; // Get the first visible enemy base
-            if (enemyBase != null)
+            // Prioritize collecting consumables if any are visible
+            if (tank.consumablesFound.Count > 0)
             {
-                Debug.Log("[SearchState] Enemy base found. Moving to attack base: " + enemyBase.name);
-
-                // Move towards the base and attack if in range
-                if (Vector3.Distance(tank.transform.position, enemyBase.transform.position) < 25f)
+                GameObject consumable = tank.consumablesFound.First().Key; // Get the first visible consumable
+                if (consumable != null)
                 {
-                    Debug.Log("[SearchState] Attacking enemy base: " + enemyBase.name);
-                    tank.FireAtPoint(enemyBase);
+                    Debug.Log("[SearchState] Collecting visible consumable: " + consumable.name);
+                    tank.FollowPathToPoint(consumable, 1f, tank.heuristicMode);
+                    return null; // Skip exploration and attacking to collect the consumable
                 }
-                else
-                {
-                    Debug.Log("[SearchState] Moving closer to enemy base: " + enemyBase.name);
-                    tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
-                }
-
-                return null; // Focus on the base and stop other behaviors
             }
-        }
 
-        // Continue exploration behavior
-        explorationTimer += Time.deltaTime;
-        if (explorationTimer >= maxExplorationTime)
-        {
-            Debug.Log("[SearchState] Generating new random exploration point...");
-            tank.FollowPathToRandomPoint(1f, tank.heuristicMode); // Corrected method call
-            explorationTimer = 0f; // Reset exploration timer
-        }
-
-        tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
-
-        // Transition to AttackState if an enemy is found
-        if (tank.enemyTanksFound.Count > 0)
-        {
-            GameObject target = tank.enemyTanksFound.First().Key; // Get the first visible enemy
-            if (target != null)
+            // Check if an enemy base is found
+            if (tank.enemyBasesFound.Count > 0)
             {
-                Debug.Log("[SearchState] Enemies found. Switching to ChaseState targeting: " + target.name);
+                GameObject enemyBase = tank.enemyBasesFound.First().Key; // Get the first visible enemy base
+                if (enemyBase != null)
+                {
+                    Debug.Log("[SearchState] Enemy base found. Moving to attack base: " + enemyBase.name);
+
+                    // Move towards the base and attack if in range
+                    if (Vector3.Distance(tank.transform.position, enemyBase.transform.position) < 25f)
+                    {
+                        Debug.Log("[SearchState] Attacking enemy base: " + enemyBase.name);
+                        tank.FireAtPoint(enemyBase);
+                    }
+                    else
+                    {
+                        Debug.Log("[SearchState] Moving closer to enemy base: " + enemyBase.name);
+                        tank.FollowPathToPoint(enemyBase, 1f, tank.heuristicMode);
+                    }
+
+                    return null; // Focus on the base and stop other behaviors
+                }
+            }
+
+            // Continue exploration behavior
+            explorationTimer += Time.deltaTime;
+            if (explorationTimer >= maxExplorationTime)
+            {
+                Debug.Log("[SearchState] Generating new random exploration point...");
+                tank.FollowPathToRandomPoint(1f, tank.heuristicMode); // Corrected method call
+                explorationTimer = 0f; // Reset exploration timer
+            }
+
+            tank.FollowPathToRandomPoint(1f, tank.heuristicMode);
+
+            // Transition to AttackState if an enemy is found
+            if (tank.enemyTanksFound.Count > 0)
+            {
+                GameObject target = tank.enemyTanksFound.First().Key; // Get the first visible enemy
+                if (target != null)
+                {
+                    Debug.Log("[SearchState] Enemies found. Switching to ChaseState targeting: " + target.name);
                 
-                return typeof(A_ChaseStateFSM);
+                    return typeof(A_ChaseStateFSM);
+                }
             }
+            return null;
         }
-        return null;
+        //return null;
     }
 
     public override Type Exit()
