@@ -58,8 +58,8 @@ public class FuelMaster_Tank : AITank
     // Strategy parameters
     private readonly float initialWaitTime = 4f;    // Initial waiting time
     private readonly float minFuelToMove = 20f;     // Minimum fuel to allow movement
-    private readonly float scanRotationSpeed = 30f; // Degrees per second for scanning
-    private readonly float optimalDistance = 35f;   // Optimal distance from enemy
+    private readonly float scanRotationSpeed = 50f; // Degrees per second for scanning
+    private readonly float optimalDistance = 45f;   // Optimal distance from enemy
     private readonly float resourceCollectionSpeed = 1f; // Full speed for resource collection
 
     // State tracking
@@ -79,7 +79,7 @@ public class FuelMaster_Tank : AITank
     public override void AITankStart()
     {
         Debug.Log("[FuelMaster] Tank initialized with resource-focused strategy");
-        heuristicMode = HeuristicMode.Manhattan;
+        heuristicMode = HeuristicMode.Diagonal;
         TransitionToState(TankState.InitialWait);
     }
 
